@@ -1,0 +1,86 @@
+{
+   "$schema": "http://json-schema.org/draft/2020-12/schema",
+   "$id": "https://raw.githubusercontent.com/ga4gh/vrsatile/main/schema/catvars.json",
+   "title": "GA4GH-Categorical-Variation-Definitions",
+   "type": "object",
+   "$defs": {
+      "CategoricalVariation": {
+         "description": "A representation of a categorically-defined  [functional domain](https://en.wikipedia.org/wiki/Domain_of_a_function)  for variation, in which individual variation instances may be members.",
+         "oneOf": [
+            {
+               "$ref": "#/$defs/CanonicalVariation"
+            },
+            {
+               "$ref": "#/$defs/ComplexVariation"
+            }
+         ]
+      },
+      "ComplexVariation": {
+         "description": "A categorical variation domain jointly characterized by two or more other categorical  variation domains.",
+         "properties": {
+            "_id": {
+               "type": "string",
+               "description": "Categorical Variation Id. MUST be unique within document."
+            },
+            "type": {
+               "type": "string",
+               "description": "MUST be \"ComplexVariation\".",
+               "const": "ComplexVariation"
+            },
+            "complement": {
+               "type": "boolean",
+               "description": "This field indicates that a categorical variation is defined to include (false) or exclude (true) variation concepts matching the categorical variation. This is  equivalent to a logical NOT operation on the categorical variation properties."
+            },
+            "operands": {
+               "type": "array",
+               "items": {
+                  "$ref": "#/$defs/CategoricalVariation"
+               },
+               "minItems": 2,
+               "description": "The CategoricalVariation objects that are being evaluated collectively."
+            },
+            "operator": {
+               "type": "string",
+               "enum": [
+                  "AND",
+                  "OR"
+               ],
+               "description": "The logical operation applied to evaluating the object *operands*. MUST be \"AND\" or \"OR\"."
+            }
+         },
+         "required": [
+            "complement",
+            "operands",
+            "operator",
+            "type"
+         ]
+      },
+      "CanonicalVariation": {
+         "description": "A categorical variation domain characterized by a representative Variation context  to which members lift-over, project, translate, or otherwise directly align.",
+         "properties": {
+            "_id": {
+               "type": "string",
+               "description": "Categorical Variation Id. MUST be unique within document."
+            },
+            "type": {
+               "type": "string",
+               "const": "CanonicalVariation",
+               "description": "MUST be \"CanonicalVariation\"."
+            },
+            "complement": {
+               "type": "boolean",
+               "description": "This field indicates that a categorical variation is defined to include (false) or exclude (true) variation concepts matching the categorical variation. This is  equivalent to a logical NOT operation on the categorical variation properties."
+            },
+            "variation": {
+               "description": "The [VRS Variation](https://vrs.ga4gh.org/en/1.2.1/terms_and_model.html#variation) object to which congruency must be determined.",
+               "$ref": "https://raw.githubusercontent.com/ga4gh/vrs/1.2.1/schema/vrs.json#/definitions/Variation"
+            }
+         },
+         "required": [
+            "complement",
+            "type",
+            "variation"
+         ]
+      }
+   }
+}
