@@ -8,6 +8,11 @@ def basic_schema():
     return 'tests/data/basic_schema.json'
 
 
+@pytest.fixture(scope='module')
+def basic_vrs_schema():
+    return 'tests/data/basic_vrs.json'
+
+
 def test_basic_schema(basic_schema):
     class_builder = ClassBuilder(basic_schema)
 
@@ -21,3 +26,20 @@ def test_basic_schema(basic_schema):
 
     with pytest.raises(ValidationError):
         assert Point(x=2, y=3, z=1)
+
+
+def test_basic_vrs_schema(basic_vrs_schema):
+    class_builder = ClassBuilder(basic_vrs_schema)
+
+    Number = class_builder.models[0]
+
+    number = Number(value=5, type="Number")
+    assert number.value == 5
+    assert number.type == "Number"
+
+    number = Number(value=5)
+    assert number.value == 5
+    assert number.type == "Number"
+
+    with pytest.raises(ValidationError):
+        assert Number(value=3, type="Float")
