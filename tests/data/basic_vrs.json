@@ -19,6 +19,34 @@
         }
       },
       "required": ["type", "value"]
+    },
+    "CURIE": {
+      "additionalProperties": false,
+      "description": "A [W3C Compact URI](https://www.w3.org/TR/curie/) formatted string. A CURIE string has the structure ``prefix``:``reference``, as defined by the W3C syntax.",
+      "type": "string",
+      "pattern": "^\\w[^:]*:.+$",
+      "example": "ensembl:ENSG00000139618"
+    },
+    "Text": {
+      "description": "A free-text definition of variation.",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/CURIE",
+          "description": "Variation Id. MUST be unique within document."
+        },
+        "type": {
+          "type": "string",
+          "const": "Text",
+          "description": "MUST be \"Text\""
+        },
+        "definition": {
+          "type": "string",
+          "description": "A textual representation of variation not representable by other subclasses of Variation."
+        }
+      },
+      "required": ["definition", "type"]
     }
   }
 }

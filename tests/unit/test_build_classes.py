@@ -44,7 +44,7 @@ def test_basic_schema(basic_schema):
 def test_basic_vrs_schema(basic_vrs_schema):
     class_builder = ClassBuilder(basic_vrs_schema)
 
-    Number = class_builder.models[0]
+    Number, CURIE, Text = class_builder.models
 
     number = Number(value=5, type="Number")
     assert number.value == 5
@@ -56,3 +56,15 @@ def test_basic_vrs_schema(basic_vrs_schema):
 
     with pytest.raises(ValidationError):
         assert Number(value=3, type="Float")
+
+    # test pattern checks and single derivative types/not objects
+    curie = CURIE("chembl:CHEMBL11359")
+    assert curie == "chembl:CHEMBL11359"
+    text = Text(id=curie, definition="Some words about cisplatin idk")
+    assert text.id == curie
+    assert text.definition == "Some words about cisplatin idk"
+    assert Text(definition="more words")  # id optional
+
+    with pytest.raises(ValidationError):
+        assert Text(id="CHEMBL11359", definition="Cisplatin")
+
