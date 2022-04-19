@@ -27,12 +27,18 @@ def test_basic_schema(basic_schema):
     with pytest.raises(ValidationError):
         assert Point(x=2, y=3, z=1)
 
-
     # test forward refs
     PointHolder = class_builder.models[0]
     point_holder = PointHolder(point=Point(x=2, y=3))
     assert point_holder.point.x == 2
     assert point_holder.point.y == 3
+
+    # test optional
+    Car = class_builder.models[2]
+    car = Car(make="Toyota", model="RAV4")
+    assert car.make == "Toyota"
+    assert car.model == "RAV4"
+    assert car.trim is None
 
 
 def test_basic_vrs_schema(basic_vrs_schema):

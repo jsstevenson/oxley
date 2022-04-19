@@ -1,5 +1,5 @@
 """Provide class construction tools."""
-from typing import Literal, Type, List, Dict, Type, ForwardRef
+from typing import Literal, Optional, Type, List, Dict, Type, ForwardRef, Union, get_args, get_origin
 from pathlib import Path
 import json
 import logging
@@ -36,6 +36,7 @@ class ClassBuilder:
         for name, definition in self.schema[self.def_keyword].items():
             props = {}
             forward_ref = False
+            required = definition.get('required', set())
             for prop_name, prop_attrs in definition['properties'].items():
                 if '$ref' in prop_attrs:
                     prop_type = ForwardRef(self.resolve_ref(prop_attrs['$ref']))
@@ -48,9 +49,14 @@ class ClassBuilder:
                         raise SchemaConversionException
                     else:
                         const_type = Literal[const_value]  # type: ignore
+                    if prop_name not in required:
+                        const_type = Optional[const_type]
                     props[prop_name] = (const_type, const_value)
                 else:
-                    props[prop_name] = (prop_type, ...)
+                    if prop_name not in required and 'default' not in prop_attrs:
+                        props[prop_name] = (Optional[prop_type], None)
+                    else:
+                        props[prop_name] = (prop_type, ...)
 
             config = self.get_configs(definition)
             model = create_model(name, __config__=config, **props)
@@ -161,4 +167,5 @@ def resolve_type(type_name: str) -> Type:
         raise SchemaConversionException('unrecognized type')
 
 
-
+def is_optional(field: Type) -> bool:
+    return get_origin(field) is Union and type(None) in get_args(field)

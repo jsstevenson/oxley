@@ -18,6 +18,15 @@
       },
       "additionalProperties": false,
       "required": ["x", "y"]
+    },
+    "Car": {
+      "type": "object",
+      "properties": {
+        "make": { "type": "string" },
+        "model": { "type": "string" },
+        "trim": { "type": "string" }
+      },
+      "required": ["make", "model"]
     }
   }
 }
