@@ -16,7 +16,7 @@ def basic_vrs_schema():
 def test_basic_schema(basic_schema):
     class_builder = ClassBuilder(basic_schema)
 
-    Point = class_builder.models[0]
+    Point = class_builder.models[1]
     point = Point(x=2, y=3)
     assert point.x == 2
     assert point.y == 3
@@ -26,6 +26,13 @@ def test_basic_schema(basic_schema):
 
     with pytest.raises(ValidationError):
         assert Point(x=2, y=3, z=1)
+
+
+    # test forward refs
+    PointHolder = class_builder.models[0]
+    point_holder = PointHolder(point=Point(x=2, y=3))
+    assert point_holder.point.x == 2
+    assert point_holder.point.y == 3
 
 
 def test_basic_vrs_schema(basic_vrs_schema):
