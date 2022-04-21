@@ -10,15 +10,16 @@ from pydantic.config import BaseConfig, Extra
 
 from respected_wizard.schema_versions import SchemaVersion, SCHEMA_MATCH_PATTERNS
 from respected_wizard.typing import resolve_type
-from respected_wizard.exceptions import SchemaConversionException, \
-    UnsupportedSchemaException
+from respected_wizard.exceptions import (
+    SchemaConversionException,
+    UnsupportedSchemaException,
+)
 
 
-logger = logging.getLogger('class_builder')
+logger = logging.getLogger("class_builder")
 
 
 class ClassBuilder:
-
     def __init__(self, schema_uri: str):
         """
         Args:
@@ -36,9 +37,9 @@ class ClassBuilder:
         """
         for name, definition in self.schema[self.def_keyword].items():
 
-            if definition['type'] == 'object':
+            if definition["type"] == "object":
                 self.build_object_class(name, definition)
-            elif definition['type'] == 'string':
+            elif definition["type"] == "string":
                 self.build_simple_class(name, definition)
 
         for model in self.contains_forward_refs:
@@ -52,15 +53,15 @@ class ClassBuilder:
         """
         attributes = {}
         type_tuple = ()
-        if definition['type'] == 'string':
+        if definition["type"] == "string":
 
-            type_tuple = (str, )
-            if 'pattern' in definition:
-                pattern = definition['pattern']
+            type_tuple = (str,)
+            if "pattern" in definition:
+                pattern = definition["pattern"]
 
                 # handle JS escape sequences
                 # TODO: do this more robustly
-                pattern = pattern.replace('//', '/')
+                pattern = pattern.replace("//", "/")
 
                 @classmethod
                 def __get_validators__(cls):
@@ -73,16 +74,16 @@ class ClassBuilder:
                 @classmethod
                 def validate(cls, v):
                     if not isinstance(v, str):
-                        raise TypeError('string required')
+                        raise TypeError("string required")
                     m = re.match(pattern, v)
                     if not m:
-                        raise ValueError('provided value doesn\'t match pattern')
+                        raise ValueError("provided value doesn't match pattern")
                     return cls(v)
 
                 attributes = {
-                    '__get_validators__': __get_validators__,
-                    '__modify_schema__': __modify_schema__,
-                    'validate': validate
+                    "__get_validators__": __get_validators__,
+                    "__modify_schema__": __modify_schema__,
+                    "validate": validate,
                 }
 
         else:
@@ -97,18 +98,20 @@ class ClassBuilder:
         """
         props = {}
         has_forward_ref = False
-        required_props = definition.get('required', set())
+        required_props = definition.get("required", set())
 
-        for prop_name, prop_attrs in definition['properties'].items():
-            if '$ref' in prop_attrs:
-                prop_type = ForwardRef(self.resolve_ref(prop_attrs['$ref']))
+        for prop_name, prop_attrs in definition["properties"].items():
+            if "$ref" in prop_attrs:
+                prop_type = ForwardRef(self.resolve_ref(prop_attrs["$ref"]))
                 has_forward_ref = True
             else:
-                prop_type = resolve_type(prop_attrs['type'])
+                prop_type = resolve_type(prop_attrs["type"])
 
-            if 'const' in prop_attrs:
-                const_value = prop_attrs['const']
-                if not any([isinstance(const_value, t) for t in (str, int, float, bool)]):
+            if "const" in prop_attrs:
+                const_value = prop_attrs["const"]
+                if not any(
+                    [isinstance(const_value, t) for t in (str, int, float, bool)]
+                ):
                     raise SchemaConversionException
                 else:
                     const_type = Literal[const_value]  # type: ignore
@@ -116,7 +119,7 @@ class ClassBuilder:
                     const_type = Optional[const_type]
                 props[prop_name] = (const_type, const_value)
             else:
-                if prop_name not in required_props and 'default' not in prop_attrs:
+                if prop_name not in required_props and "default" not in prop_attrs:
                     props[prop_name] = (Optional[prop_type], None)  # type: ignore
                 else:
                     props[prop_name] = (prop_type, ...)
@@ -140,14 +143,16 @@ class ClassBuilder:
         Returns:
             Class based on BaseConfig with new attributes set, where necessary
         """
-        if 'additionalProperties' in definition:
-            additional_properties = definition['additionalProperties']
+        if "additionalProperties" in definition:
+            additional_properties = definition["additionalProperties"]
             if additional_properties is False:
                 extra_value = Extra.forbid
             elif additional_properties is True:
                 extra_value = Extra.allow
             else:
-                logger.warning(f'Unrecognized additionalProperties value: {additional_properties}')
+                logger.warning(
+                    f"Unrecognized additionalProperties value: {additional_properties}"
+                )
                 extra_value = Extra.ignore
         else:
             extra_value = Extra.ignore
@@ -156,7 +161,6 @@ class ClassBuilder:
             extra: Extra = extra_value
 
         return ModifiedConfig
-
 
     def resolve_schema_version(self, schema_version: str) -> SchemaVersion:
         """
@@ -188,15 +192,15 @@ class ClassBuilder:
             Schema as dict
         """
         schema_path = Path(schema_uri)
-        with open(schema_path, 'r') as f:
+        with open(schema_path, "r") as f:
             schema = json.load(f)
 
-        schema_version = self.resolve_schema_version(schema.get('$schema', ''))
+        schema_version = self.resolve_schema_version(schema.get("$schema", ""))
 
         if schema_version == SchemaVersion.DRAFT_2020_12:
-            self.def_keyword = '$defs'
+            self.def_keyword = "$defs"
         elif schema_version == SchemaVersion.DRAFT_07:
-            self.def_keyword = 'definitions'
+            self.def_keyword = "definitions"
 
         return schema
 
@@ -210,8 +214,9 @@ class ClassBuilder:
         Raise:
             UnsupportedSchemaException: if reference points beyond the document
         """
-        leader = f'#/{self.def_keyword}/'
+        leader = f"#/{self.def_keyword}/"
         if not ref.startswith(leader):
             raise UnsupportedSchemaException(
-                'External references not currently supported')
+                "External references not currently supported"
+            )
         return ref.split(leader)[1]

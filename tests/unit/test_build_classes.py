@@ -3,14 +3,15 @@ from pydantic import ValidationError
 
 from respected_wizard.class_builder import ClassBuilder
 
-@pytest.fixture(scope='module')
+
+@pytest.fixture(scope="module")
 def basic_schema():
-    return 'tests/data/basic_schema.json'
+    return "tests/data/basic_schema.json"
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def basic_vrs_schema():
-    return 'tests/data/basic_vrs.json'
+    return "tests/data/basic_vrs.json"
 
 
 def test_basic_schema(basic_schema):
@@ -67,4 +68,3 @@ def test_basic_vrs_schema(basic_vrs_schema):
 
     with pytest.raises(ValidationError):
         assert Text(id="CHEMBL11359", definition="Cisplatin")
-
