@@ -1,0 +1,47 @@
+name: github-actions
+on: [push, pull_request]
+jobs:
+    test:
+        name: test py${{ matrix.python-version }}
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+              python-version: [3.8, 3.9, 3.10]
+        steps:
+            - uses: actions/checkout@v2
+
+            - name: Setup Python
+              uses: actions/setup-python@v1
+              with:
+                  python-version: ${{ matrix.python-version }}
+
+            - name: Install dependencies
+              run: |
+                  python3 -m pip install tox
+
+            - name: Run tests
+              run: python3 -m tox -e test
+    lint:
+        name: lint py${{ matrix.python-version }}
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+              python-version: [3.8, 3.9, 3.10]
+        steps:
+            - uses: actions/checkout@v2
+
+            - name: Setup Python
+              uses: actions/setup-python@v1
+              with:
+                  python-version: ${{ matrix.python-version }}
+
+            - name: Install dependencies
+              run: |
+                  python3 -m pip install tox
+
+            - name: Check style
+              run: python3 -m tox -e lint
+
+            - name: Check type correctness
+              if: ${{ always() }}
+              run: python3 -m tox -e mypy
