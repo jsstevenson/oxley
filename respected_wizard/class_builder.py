@@ -1,5 +1,5 @@
 """Provide class construction tools."""
-from typing import Literal, Optional, Type, Dict, Type, ForwardRef
+from typing import Literal, Optional, Type, Dict, Type, ForwardRef, List
 from pathlib import Path
 import json
 import logging
@@ -29,11 +29,13 @@ class ClassBuilder:
         self.models = []
         self.localns = {}
         self.contains_forward_refs = set()
-        self.build_classes()
 
-    def build_classes(self):
+    def build_classes(self) -> List:
         """
         Construct classes from requested schema.
+
+        Returns:
+            List of Pydantic classes generated from schema
         """
         for name, definition in self.schema[self.def_keyword].items():
 
@@ -45,6 +47,7 @@ class ClassBuilder:
         for model in self.contains_forward_refs:
             model.update_forward_refs(**self.localns)
         self.models = list(self.localns.values())
+        return self.models
 
     def build_simple_class(self, name: str, definition: Dict):
         """

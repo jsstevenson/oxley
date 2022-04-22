@@ -16,8 +16,9 @@ def basic_vrs_schema():
 
 def test_basic_schema(basic_schema):
     class_builder = ClassBuilder(basic_schema)
+    models = class_builder.build_classes()
 
-    Point = class_builder.models[1]
+    Point = models[1]
     point = Point(x=2, y=3)
     assert point.x == 2
     assert point.y == 3
@@ -29,13 +30,13 @@ def test_basic_schema(basic_schema):
         assert Point(x=2, y=3, z=1)
 
     # test forward refs
-    PointHolder = class_builder.models[0]
+    PointHolder = models[0]
     point_holder = PointHolder(point=Point(x=2, y=3))
     assert point_holder.point.x == 2
     assert point_holder.point.y == 3
 
     # test optional
-    Car = class_builder.models[2]
+    Car = models[2]
     car = Car(make="Toyota", model="RAV4")
     assert car.make == "Toyota"
     assert car.model == "RAV4"
@@ -44,8 +45,9 @@ def test_basic_schema(basic_schema):
 
 def test_basic_vrs_schema(basic_vrs_schema):
     class_builder = ClassBuilder(basic_vrs_schema)
+    models = class_builder.build_classes()
 
-    Number, CURIE, Text = class_builder.models
+    Number, CURIE, Text = models
 
     number = Number(value=5, type="Number")
     assert number.value == 5

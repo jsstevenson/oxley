@@ -1,5 +1,5 @@
 """Provide miscellaneous type utilities."""
-from typing import Type, List, Dict, Union, get_origin, get_args
+from typing import Type, List, Dict, Union, get_origin, get_args, TypeVar
 
 from respected_wizard.exceptions import SchemaConversionException
 
@@ -28,3 +28,6 @@ def resolve_type(type_name: str) -> Type:
 def is_optional_type(field: Type) -> bool:
     """Check if type is Optional."""
     return get_origin(field) is Union and type(None) in get_args(field)
+
+
+JSONSchemaClass = TypeVar("JSONSchemaClass")
