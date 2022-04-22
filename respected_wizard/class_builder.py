@@ -1,5 +1,5 @@
 """Provide class construction tools."""
-from typing import Literal, Optional, Type, Dict, Type, ForwardRef, List
+from typing import Literal, Optional, Type, Dict, Type, ForwardRef, List, Set
 from pathlib import Path
 import json
 import logging
@@ -26,9 +26,9 @@ class ClassBuilder:
             schema_uri: URL pointing to schema
         """
         self.schema = self.resolve_schema(schema_uri)
-        self.models = []
-        self.localns = {}
-        self.contains_forward_refs = set()
+        self.models: List = []
+        self.localns: Dict = {}
+        self.contains_forward_refs: Set = set()
 
     def build_classes(self) -> List:
         """
