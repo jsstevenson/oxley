@@ -1,5 +1,16 @@
 """Provide class construction tools."""
-from typing import Literal, Optional, Type, Dict, Type, ForwardRef, List
+from typing import (
+    Any,
+    Literal,
+    Optional,
+    Type,
+    Dict,
+    Type,
+    ForwardRef,
+    List,
+    Set,
+    Tuple,
+)
 from pathlib import Path
 import json
 import logging
@@ -26,9 +37,9 @@ class ClassBuilder:
             schema_uri: URL pointing to schema
         """
         self.schema = self.resolve_schema(schema_uri)
-        self.models = []
-        self.localns = {}
-        self.contains_forward_refs = set()
+        self.models: List = []
+        self.localns: Dict = {}
+        self.contains_forward_refs: Set = set()
 
     def build_classes(self) -> List:
         """
@@ -55,7 +66,7 @@ class ClassBuilder:
         Currently only supports strings.
         """
         attributes = {}
-        type_tuple = ()
+        type_tuple: Tuple = ()
         if definition["type"] == "string":
 
             type_tuple = (str,)
@@ -66,15 +77,15 @@ class ClassBuilder:
                 # TODO: do this more robustly
                 pattern = pattern.replace("//", "/")
 
-                @classmethod
+                @classmethod  # type: ignore
                 def __get_validators__(cls):
                     yield cls.validate
 
-                @classmethod
+                @classmethod  # type: ignore
                 def __modify_schema__(cls, field_schema):
                     field_schema.update(pattern=pattern)
 
-                @classmethod
+                @classmethod  # type: ignore
                 def validate(cls, v):
                     if not isinstance(v, str):
                         raise TypeError("string required")
@@ -105,7 +116,7 @@ class ClassBuilder:
 
         for prop_name, prop_attrs in definition["properties"].items():
             if "$ref" in prop_attrs:
-                prop_type = ForwardRef(self.resolve_ref(prop_attrs["$ref"]))
+                prop_type: Any = ForwardRef(self.resolve_ref(prop_attrs["$ref"]))
                 has_forward_ref = True
             else:
                 prop_type = resolve_type(prop_attrs["type"])
@@ -119,7 +130,7 @@ class ClassBuilder:
                 else:
                     const_type = Literal[const_value]  # type: ignore
                 if prop_name not in required_props:
-                    const_type = Optional[const_type]
+                    const_type = Optional[const_type]  # type: ignore
                 props[prop_name] = (const_type, const_value)
             else:
                 if prop_name not in required_props and "default" not in prop_attrs:
@@ -127,7 +138,7 @@ class ClassBuilder:
                 else:
                     props[prop_name] = (prop_type, ...)
         config = self.get_configs(definition)
-        model = create_model(name, __config__=config, **props)
+        model = create_model(__model_name=name, __config__=config, **props)  # type: ignore
 
         self.localns[name] = model
         if has_forward_ref:
