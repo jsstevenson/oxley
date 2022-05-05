@@ -26,8 +26,12 @@ from respected_wizard.exceptions import (
     UnsupportedSchemaException,
 )
 
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[logging.FileHandler("respected_wizard.log"), logging.StreamHandler()],
+)
 
-logger = logging.getLogger("class_builder")
+logger = logging.getLogger(__name__)
 
 
 class ClassBuilder:
@@ -105,6 +109,10 @@ class ClassBuilder:
         model = type(name, type_tuple, attributes)
         self.localns[name] = model
 
+    def _handle_class_deprecation(self, name: str, definition: Dict):
+        if definition.get("deprecated"):
+            logger.warning(f"Class {name} is deprecated.")
+
     def build_object_class(self, name: str, definition: Dict):
         """
         Construct object-based class. Updates `self.contains_forward_refs` collection
@@ -113,6 +121,8 @@ class ClassBuilder:
         props = {}
         has_forward_ref = False
         required_props = definition.get("required", set())
+
+        self._handle_class_deprecation(name, definition)
 
         for prop_name, prop_attrs in definition["properties"].items():
             if "$ref" in prop_attrs:
