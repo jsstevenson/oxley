@@ -21,6 +21,7 @@
     },
     "Car": {
       "type": "object",
+      "deprecated": true,
       "properties": {
         "make": { "type": "string" },
         "model": { "type": "string" },

@@ -14,7 +14,7 @@ def basic_vrs_schema():
     return "tests/data/basic_vrs.json"
 
 
-def test_basic_schema(basic_schema):
+def test_basic_schema(basic_schema, caplog):
     class_builder = ClassBuilder(basic_schema)
     models = class_builder.build_classes()
 
@@ -41,6 +41,9 @@ def test_basic_schema(basic_schema):
     assert car.make == "Toyota"
     assert car.model == "RAV4"
     assert car.trim is None
+
+    # test deprecated warning
+    assert "WARNING" in caplog.text and "Class Car is deprecated" in caplog.text
 
 
 def test_basic_vrs_schema(basic_vrs_schema):
