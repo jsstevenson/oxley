@@ -4,7 +4,7 @@ from typing import Type, List, Dict, Union, get_origin, get_args, TypeVar
 from respected_wizard.exceptions import SchemaConversionException
 
 
-def resolve_type(type_name: str) -> Type:
+def resolve_type(type_name: str) -> Union[Type, None]:
     """
     Convert JSON primitive type name to Python type.
     """

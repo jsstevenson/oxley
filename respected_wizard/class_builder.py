@@ -145,7 +145,7 @@ class ClassBuilder:
                 props[prop_name] = (const_type, const_value)
             elif "enum" in prop_attrs:
                 enum_type = Enum(
-                    prop_name, {str(p).upper(): p for p in prop_attrs["enum"]}, type=str
+                    prop_name, {str(p).upper(): p for p in prop_attrs["enum"]}, type=str  # type: ignore
                 )
                 props[prop_name] = (enum_type, None)
             else:
