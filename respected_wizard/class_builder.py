@@ -144,9 +144,8 @@ class ClassBuilder:
                     const_type = Optional[const_type]  # type: ignore
                 props[prop_name] = (const_type, const_value)
             elif "enum" in prop_attrs:
-                enum_type = Enum(
-                    prop_name, {str(p).upper(): p for p in prop_attrs["enum"]}, type=str
-                )  # type: ignore
+                vals = {str(p).upper(): p for p in prop_attrs["enum"]}
+                enum_type = Enum(prop_name, vals, type=str)  # type: ignore
                 props[prop_name] = (enum_type, None)
             else:
                 if prop_name not in required_props and "default" not in prop_attrs:
