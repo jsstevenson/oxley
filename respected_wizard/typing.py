@@ -4,9 +4,9 @@ from typing import Type, List, Dict, Union, get_origin, get_args, TypeVar
 from respected_wizard.exceptions import SchemaConversionException
 
 
-def resolve_type(type_name: str) -> Type:
+def resolve_type(type_name: str) -> Union[Type, None]:
     """
-    Currently only supporting primitive types.
+    Convert JSON primitive type name to Python type.
     """
     if type_name == "number" or type_name == "float":
         return float
@@ -20,7 +20,8 @@ def resolve_type(type_name: str) -> Type:
         return List
     elif type_name == "object":
         return Dict
-    # TODO null?
+    elif type_name == None:
+        return None
     else:
         raise SchemaConversionException("unrecognized type")
 
