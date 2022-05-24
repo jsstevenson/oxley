@@ -28,6 +28,15 @@
         "trim": { "type": "string" }
       },
       "required": ["make", "model"]
+    },
+    "Friend": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": ["Pocket", "Franklin"]
+        }
+      }
     }
   }
 }

@@ -45,6 +45,14 @@ def test_basic_schema(basic_schema, caplog):
     # test deprecated warning
     assert "WARNING" in caplog.text and "Class Car is deprecated" in caplog.text
 
+    # test enum
+    Friend = models[3]
+    franklin = Friend(name="Franklin")
+    assert franklin.name == "Franklin"
+
+    with pytest.raises(ValidationError):
+        Friend(name="Francois")
+
 
 def test_basic_vrs_schema(basic_vrs_schema):
     class_builder = ClassBuilder(basic_vrs_schema)
