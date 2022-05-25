@@ -19,6 +19,7 @@ import re
 
 from pydantic import create_model
 from pydantic.config import BaseConfig, Extra
+from pydantic.fields import Field
 
 from respected_wizard.schema_versions import SchemaVersion, SCHEMA_MATCH_PATTERNS
 from respected_wizard.typing import resolve_type
@@ -54,7 +55,6 @@ class ClassBuilder:
             List of Pydantic classes generated from schema
         """
         for name, definition in self.schema[self.def_keyword].items():
-
             if definition["type"] == "object":
                 self.build_object_class(name, definition)
             elif definition["type"] == "string":
@@ -119,18 +119,20 @@ class ClassBuilder:
         Construct object-based class. Updates `self.contains_forward_refs` collection
         if object contains references to other defined objects.
         """
-        props = {}
+        fields = {}
         has_forward_ref = False
-        required_props = definition.get("required", set())
+        required_fields = definition.get("required", set())
 
         self._handle_class_deprecation(name, definition)
 
         for prop_name, prop_attrs in definition["properties"].items():
             if "$ref" in prop_attrs:
-                prop_type: Any = ForwardRef(self.resolve_ref(prop_attrs["$ref"]))
+                field_type: Any = ForwardRef(self.resolve_ref(prop_attrs["$ref"]))
                 has_forward_ref = True
             else:
-                prop_type = resolve_type(prop_attrs["type"])
+                field_type = resolve_type(prop_attrs["type"])
+
+            field_args = {"description": prop_attrs.get("description")}
 
             if "const" in prop_attrs:
                 const_value = prop_attrs["const"]
@@ -140,20 +142,22 @@ class ClassBuilder:
                     raise SchemaConversionException
                 else:
                     const_type = Literal[const_value]  # type: ignore
-                if prop_name not in required_props:
+                if prop_name not in required_fields:
                     const_type = Optional[const_type]  # type: ignore
-                props[prop_name] = (const_type, const_value)
+                fields[prop_name] = (const_type, Field(const_value, **field_args))
             elif "enum" in prop_attrs:
                 vals = {str(p).upper(): p for p in prop_attrs["enum"]}
                 enum_type = Enum(prop_name, vals, type=str)  # type: ignore
-                props[prop_name] = (enum_type, None)
+                fields[prop_name] = (enum_type, Field(..., **field_args))
             else:
-                if prop_name not in required_props and "default" not in prop_attrs:
-                    props[prop_name] = (Optional[prop_type], None)  # type: ignore
+                if prop_name not in required_fields and "default" not in prop_attrs:
+                    fields[prop_name] = (Optional[field_type], Field(None, **field_args))  # type: ignore
                 else:
-                    props[prop_name] = (prop_type, ...)
+                    fields[prop_name] = (field_type, Field(..., **field_args))
         config = self.get_configs(definition)
-        model = create_model(__model_name=name, __config__=config, **props)  # type: ignore
+        model = create_model(__model_name=name, __config__=config, **fields)  # type: ignore
+        if "description" in definition:
+            model.__doc__ = definition["description"]
 
         self.localns[name] = model
         if has_forward_ref:
