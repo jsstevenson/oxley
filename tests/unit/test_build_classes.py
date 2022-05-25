@@ -81,3 +81,8 @@ def test_basic_vrs_schema(basic_vrs_schema):
 
     with pytest.raises(ValidationError):
         assert Text(id="CHEMBL11359", definition="Cisplatin")
+
+    # check for descriptions in schema output
+    number_schema = Number.schema()
+    assert number_schema["description"] == "A simple integer value as a VRS class."
+    assert number_schema["properties"]["type"]["description"] == 'MUST be "Number"'
