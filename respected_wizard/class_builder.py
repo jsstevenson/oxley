@@ -1,6 +1,7 @@
 """Provide class construction tools."""
 from typing import (
     Any,
+    Callable,
     Literal,
     Optional,
     Type,
@@ -10,6 +11,7 @@ from typing import (
     List,
     Set,
     Tuple,
+    Union,
 )
 from enum import Enum
 from pathlib import Path
@@ -18,7 +20,6 @@ import logging
 import re
 
 from pydantic import create_model
-from pydantic.class_validators import root_validator
 from pydantic.config import BaseConfig, Extra
 from pydantic.fields import Field
 from pydantic.main import BaseModel
@@ -121,11 +122,10 @@ class ClassBuilder:
         Construct object-based class. Updates `self.contains_forward_refs` collection
         if object contains references to other defined objects.
         """
-        fields = {}
+        fields: Dict[str, Union[Tuple[Any, Any], Callable]] = {}
         has_forward_ref = False
         required_fields = definition.get("required", set())
         allow_population_by_field_name = False
-        validators = {}
 
         self._handle_class_deprecation(name, definition)
 
@@ -173,12 +173,15 @@ class ClassBuilder:
                 fields[prop_name] = (enum_type, Field(..., **field_args))
             else:
                 if prop_name not in required_fields and "default" not in prop_attrs:
-                    fields[prop_name] = (Optional[field_type], Field(None, **field_args))  # type: ignore
+                    fields[prop_name] = (
+                        Optional[field_type],
+                        Field(None, **field_args),
+                    )
                 else:
                     fields[prop_name] = (field_type, Field(..., **field_args))
 
         config = self.get_configs(definition, allow_population_by_field_name)
-        model = create_model(__model_name=name, __config__=config, __validators__=validators, **fields)  # type: ignore
+        model = create_model(__model_name=name, __config__=config, **fields)  # type: ignore
         if "description" in definition:
             model.__doc__ = definition["description"]
 
