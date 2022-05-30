@@ -4,16 +4,6 @@ from pydantic import ValidationError
 from respected_wizard.class_builder import ClassBuilder
 
 
-@pytest.fixture(scope="module")
-def basic_schema():
-    return "tests/data/basic_schema.json"
-
-
-@pytest.fixture(scope="module")
-def basic_vrs_schema():
-    return "tests/data/basic_vrs.json"
-
-
 @pytest.fixture(scope="function")
 def basic_schema_models():
     class_builder = ClassBuilder("tests/data/basic_schema.json")
@@ -28,11 +18,8 @@ def basic_vrs_models():
     return {m.__name__: m for m in models}
 
 
-def test_basic_schema(basic_schema, caplog):
-    class_builder = ClassBuilder(basic_schema)
-    models = class_builder.build_classes()
-
-    Point = models[1]
+def test_basic_schema(basic_schema_models):
+    Point = basic_schema_models["Point"]
     point = Point(x=2, y=3)
     assert point.x == 2
     assert point.y == 3
@@ -44,23 +31,20 @@ def test_basic_schema(basic_schema, caplog):
         assert Point(x=2, y=3, z=1)
 
     # test forward refs
-    PointHolder = models[0]
+    PointHolder = basic_schema_models["PointHolder"]
     point_holder = PointHolder(point=Point(x=2, y=3))
     assert point_holder.point.x == 2
     assert point_holder.point.y == 3
 
     # test optional
-    Car = models[2]
+    Car = basic_schema_models["Car"]
     car = Car(make="Toyota", model="RAV4")
     assert car.make == "Toyota"
     assert car.model == "RAV4"
     assert car.trim is None
 
-    # test deprecated warning
-    assert "WARNING" in caplog.text and "Class Car is deprecated" in caplog.text
-
     # test enum
-    Friend = models[3]
+    Friend = basic_schema_models["Friend"]
     franklin = Friend(name="Franklin")
     assert franklin.name == "Franklin"
 
@@ -68,12 +52,14 @@ def test_basic_schema(basic_schema, caplog):
         Friend(name="Francois")
 
 
-def test_basic_vrs_schema(basic_vrs_schema):
-    class_builder = ClassBuilder(basic_vrs_schema)
-    models = class_builder.build_classes()
+def test_deprecated_warning(caplog):
+    class_builder = ClassBuilder("tests/data/basic_schema.json")
+    class_builder.build_classes()
+    assert "WARNING" in caplog.text and "Class Car is deprecated" in caplog.text
 
-    Number, CURIE, Text, _ = models
 
+def test_basic_vrs_schema(basic_vrs_models):
+    Number = basic_vrs_models["Number"]
     number = Number(value=5, type="Number")
     assert number.value == 5
     assert number.type == "Number"
@@ -86,8 +72,11 @@ def test_basic_vrs_schema(basic_vrs_schema):
         assert Number(value=3, type="Float")
 
     # test pattern checks and single derivative types/not objects
+    CURIE = basic_vrs_models["CURIE"]
     curie = CURIE("chembl:CHEMBL11359")
     assert curie == "chembl:CHEMBL11359"
+
+    Text = basic_vrs_models["Text"]
     text = Text(id=curie, definition="Some words about cisplatin idk")
     assert text.id == curie
     assert text.definition == "Some words about cisplatin idk"
@@ -129,3 +118,17 @@ def test_default_value(basic_schema_models):
     k = Knight(age=50, title="Sir Davos")
     assert k.age == 50
     assert k.title == "Sir Davos"
+
+
+def test_examples(basic_vrs_models):
+    """
+    Check that examples are constructed by config objects and available in schema.
+    """
+    CytobandInterval = basic_vrs_models["CytobandInterval"]
+    schema = CytobandInterval.schema()
+    assert "example" in schema
+    assert schema["example"] == {
+        "type": "CytobandInterval",
+        "start": "q22.2",
+        "end": "q22.3",
+    }

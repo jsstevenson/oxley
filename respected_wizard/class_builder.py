@@ -181,7 +181,7 @@ class ClassBuilder:
                     field_type = Optional[field_type]
                 fields[prop_name] = (field_type, Field(**field_args))
 
-        config = self.get_configs(definition, allow_population_by_field_name)
+        config = self.get_configs(name, definition, allow_population_by_field_name)
         model = create_model(__model_name=name, __config__=config, **fields)  # type: ignore
         if "description" in definition:
             model.__doc__ = definition["description"]
@@ -192,12 +192,13 @@ class ClassBuilder:
 
     @staticmethod
     def get_configs(
-        definition: Dict, allow_population_by_field_name_setting: bool
+        name: str, definition: Dict, allow_population_by_field_name_setting: bool
     ) -> Type[BaseConfig]:
         """
         Set model configs from definition attributes.
 
         Args:
+            name: class name
             definition: item definition from schema.
             allow_population_by_field_name_setting: use attribute alias in output instead of
                 original name.
@@ -219,9 +220,19 @@ class ClassBuilder:
         else:
             extra_value = Extra.ignore
 
+        schema_extra_value = {}  # type: ignore
+        if "example" in definition:
+
+            def schema_extra_function(schema: Dict[str, Any], model: Type[name]) -> None:  # type: ignore
+                """Configure schema"""
+                schema["example"] = definition["example"]
+
+            schema_extra_value = schema_extra_function  # type: ignore
+
         class ModifiedConfig(BaseConfig):
             extra: Extra = extra_value
             allow_population_by_field_name = allow_population_by_field_name_setting
+            schema_extra = schema_extra_value  # type: ignore
 
         return ModifiedConfig
 
