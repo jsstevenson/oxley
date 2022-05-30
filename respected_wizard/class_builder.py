@@ -139,15 +139,20 @@ class ClassBuilder:
             field_args = {"description": prop_attrs.get("description")}
 
             if prop_name[0] == "_":
-                field_args["alias"] = prop_name
-                prop_name = prop_name[1:]
+                alt_name = prop_name[:]
+                field_args["alias"] = alt_name
                 allow_population_by_field_name = True
+
+                main_field_name = alt_name[1:]
 
                 def dict(self):
                     d = BaseModel.dict(self)
-                    d["_id"] = d["id"]
-                    del d["id"]
+                    if main_field_name in d:
+                        d[alt_name[:]] = d[main_field_name]
+                        del d[main_field_name]
                     return d
+
+                prop_name = main_field_name
 
                 fields["dict"] = dict
 
