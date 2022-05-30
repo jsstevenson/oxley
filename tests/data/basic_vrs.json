@@ -63,7 +63,7 @@
           "description": "MUST be \"Haplotype\""
         }
       },
-      "required": ["members", "type"]
+      "required": ["type"]
     }
   }
 }
