@@ -15,6 +15,13 @@ def basic_vrs_schema():
 
 
 @pytest.fixture(scope="function")
+def basic_schema_models():
+    class_builder = ClassBuilder("tests/data/basic_schema.json")
+    models = class_builder.build_classes()
+    return {m.__name__: m for m in models}
+
+
+@pytest.fixture(scope="function")
 def basic_vrs_models():
     class_builder = ClassBuilder("tests/data/basic_vrs.json")
     models = class_builder.build_classes()
@@ -65,7 +72,7 @@ def test_basic_vrs_schema(basic_vrs_schema):
     class_builder = ClassBuilder(basic_vrs_schema)
     models = class_builder.build_classes()
 
-    Number, CURIE, Text, Haplotype = models
+    Number, CURIE, Text, _ = models
 
     number = Number(value=5, type="Number")
     assert number.value == 5
@@ -108,3 +115,17 @@ def test_handle_leading_underscore_fields(basic_vrs_models):
     haplotype_dict = haplotype.dict()
     assert haplotype_dict["_id"] == "sdfjk:haplotype"
     assert "id" not in haplotype_dict
+
+
+def test_default_value(basic_schema_models):
+    """
+    Check that default property values are correctly handled.
+    """
+    Knight = basic_schema_models["Knight"]
+    k = Knight(age=23)
+    assert k.age == 23
+    assert k.title == "Sir Lancelot"
+
+    k = Knight(age=50, title="Sir Davos")
+    assert k.age == 50
+    assert k.title == "Sir Davos"

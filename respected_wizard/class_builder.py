@@ -21,7 +21,7 @@ import re
 
 from pydantic import create_model
 from pydantic.config import BaseConfig, Extra
-from pydantic.fields import Field
+from pydantic.fields import Field, Undefined
 from pydantic.main import BaseModel
 
 from respected_wizard.schema_versions import SchemaVersion, resolve_schema_version
@@ -137,6 +137,10 @@ class ClassBuilder:
                 field_type = resolve_type(prop_attrs["type"])
 
             field_args = {"description": prop_attrs.get("description")}
+            if "default" in prop_attrs:
+                field_args["default"] = prop_attrs["default"]
+            else:
+                field_args["default"] = Undefined
 
             if prop_name[0] == "_":
                 alt_name = prop_name[:]
@@ -166,19 +170,16 @@ class ClassBuilder:
                     const_type = Literal[const_value]  # type: ignore
                 if prop_name not in required_fields:
                     const_type = Optional[const_type]  # type: ignore
-                fields[prop_name] = (const_type, Field(const_value, **field_args))
+                field_args["default"] = const_value
+                fields[prop_name] = (const_type, Field(**field_args))
             elif "enum" in prop_attrs:
                 vals = {str(p).upper(): p for p in prop_attrs["enum"]}
                 enum_type = Enum(prop_name, vals, type=str)  # type: ignore
-                fields[prop_name] = (enum_type, Field(..., **field_args))
+                fields[prop_name] = (enum_type, Field(**field_args))
             else:
-                if prop_name not in required_fields and "default" not in prop_attrs:
-                    fields[prop_name] = (
-                        Optional[field_type],
-                        Field(None, **field_args),
-                    )
-                else:
-                    fields[prop_name] = (field_type, Field(..., **field_args))
+                if prop_name not in required_fields:
+                    field_type = Optional[field_type]
+                fields[prop_name] = (field_type, Field(**field_args))
 
         config = self.get_configs(definition, allow_population_by_field_name)
         model = create_model(__model_name=name, __config__=config, **fields)  # type: ignore

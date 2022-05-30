@@ -37,6 +37,18 @@
           "enum": ["Pocket", "Franklin"]
         }
       }
+    },
+    "Knight": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "default": "Sir Lancelot"
+        },
+        "age": {
+          "type": "number"
+        }
+      }
     }
   }
 }
