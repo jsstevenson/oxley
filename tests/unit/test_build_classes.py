@@ -14,6 +14,13 @@ def basic_vrs_schema():
     return "tests/data/basic_vrs.json"
 
 
+@pytest.fixture(scope="function")
+def basic_vrs_models():
+    class_builder = ClassBuilder("tests/data/basic_vrs.json")
+    models = class_builder.build_classes()
+    return {m.__name__: m for m in models}
+
+
 def test_basic_schema(basic_schema, caplog):
     class_builder = ClassBuilder(basic_schema)
     models = class_builder.build_classes()
@@ -58,7 +65,7 @@ def test_basic_vrs_schema(basic_vrs_schema):
     class_builder = ClassBuilder(basic_vrs_schema)
     models = class_builder.build_classes()
 
-    Number, CURIE, Text = models
+    Number, CURIE, Text, Haplotype = models
 
     number = Number(value=5, type="Number")
     assert number.value == 5
@@ -86,3 +93,18 @@ def test_basic_vrs_schema(basic_vrs_schema):
     number_schema = Number.schema()
     assert number_schema["description"] == "A simple integer value as a VRS class."
     assert number_schema["properties"]["type"]["description"] == 'MUST be "Number"'
+
+
+def test_handle_leading_underscore_fields(basic_vrs_models):
+    """
+    Check for handling properties with leading aliases in names
+    """
+    Haplotype = basic_vrs_models["Haplotype"]
+    haplotype = Haplotype(id="gml:a_haplotype", type="Haplotype")
+    assert haplotype.id == "gml:a_haplotype"
+    assert haplotype.schema()["properties"]["_id"]
+
+    haplotype = Haplotype(**{"_id": "sdfjk:haplotype"})
+    haplotype_dict = haplotype.dict()
+    assert haplotype_dict["_id"] == "sdfjk:haplotype"
+    assert "id" not in haplotype_dict

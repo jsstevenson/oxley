@@ -47,6 +47,23 @@
         }
       },
       "required": ["definition", "type"]
+    },
+    "Haplotype": {
+      "description": "A set of non-overlapping Allele members that co-occur on the same molecule.",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "_id": {
+          "$ref": "#/definitions/CURIE",
+          "description": "Variation Id. MUST be unique within document."
+        },
+        "type": {
+          "type": "string",
+          "const": "Haplotype",
+          "description": "MUST be \"Haplotype\""
+        }
+      },
+      "required": ["members", "type"]
     }
   }
 }

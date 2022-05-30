@@ -18,10 +18,12 @@ import logging
 import re
 
 from pydantic import create_model
+from pydantic.class_validators import root_validator
 from pydantic.config import BaseConfig, Extra
 from pydantic.fields import Field
+from pydantic.main import BaseModel
 
-from respected_wizard.schema_versions import SchemaVersion, SCHEMA_MATCH_PATTERNS
+from respected_wizard.schema_versions import SchemaVersion, resolve_schema_version
 from respected_wizard.typing import resolve_type
 from respected_wizard.exceptions import (
     SchemaConversionException,
@@ -122,6 +124,8 @@ class ClassBuilder:
         fields = {}
         has_forward_ref = False
         required_fields = definition.get("required", set())
+        allow_population_by_field_name = False
+        validators = {}
 
         self._handle_class_deprecation(name, definition)
 
@@ -133,6 +137,19 @@ class ClassBuilder:
                 field_type = resolve_type(prop_attrs["type"])
 
             field_args = {"description": prop_attrs.get("description")}
+
+            if prop_name[0] == "_":
+                field_args["alias"] = prop_name
+                prop_name = prop_name[1:]
+                allow_population_by_field_name = True
+
+                def dict(self):
+                    d = BaseModel.dict(self)
+                    d["_id"] = d["id"]
+                    del d["id"]
+                    return d
+
+                fields["dict"] = dict
 
             if "const" in prop_attrs:
                 const_value = prop_attrs["const"]
@@ -154,8 +171,9 @@ class ClassBuilder:
                     fields[prop_name] = (Optional[field_type], Field(None, **field_args))  # type: ignore
                 else:
                     fields[prop_name] = (field_type, Field(..., **field_args))
-        config = self.get_configs(definition)
-        model = create_model(__model_name=name, __config__=config, **fields)  # type: ignore
+
+        config = self.get_configs(definition, allow_population_by_field_name)
+        model = create_model(__model_name=name, __config__=config, __validators__=validators, **fields)  # type: ignore
         if "description" in definition:
             model.__doc__ = definition["description"]
 
@@ -163,15 +181,17 @@ class ClassBuilder:
         if has_forward_ref:
             self.contains_forward_refs.add(model)
 
-    def get_configs(self, definition: Dict) -> Type[BaseConfig]:
+    @staticmethod
+    def get_configs(
+        definition: Dict, allow_population_by_field_name_setting: bool
+    ) -> Type[BaseConfig]:
         """
         Set model configs from definition attributes.
 
-        Currently only supports restricting/allowing/ignoring extra values based on
-        additionalProperties value.
-
         Args:
-            definition: item definition from schema
+            definition: item definition from schema.
+            allow_population_by_field_name_setting: use attribute alias in output instead of
+                original name.
 
         Returns:
             Class based on BaseConfig with new attributes set, where necessary
@@ -192,27 +212,9 @@ class ClassBuilder:
 
         class ModifiedConfig(BaseConfig):
             extra: Extra = extra_value
+            allow_population_by_field_name = allow_population_by_field_name_setting
 
         return ModifiedConfig
-
-    def resolve_schema_version(self, schema_version: str) -> SchemaVersion:
-        """
-        Get version enum from JSONschema version string.
-
-        Args:
-            schema_version: URL pointing to schema instance
-
-        Returns:
-            Enum corresponding to schema version value
-
-        Raises:
-            UnsupportedSchemaException: if schema_version is anything other than
-            supported versions.
-        """
-        for pattern, version in SCHEMA_MATCH_PATTERNS.items():
-            if re.match(pattern, schema_version):
-                return version
-        raise UnsupportedSchemaException
 
     def resolve_schema(self, schema_uri: str) -> Dict:
         """
@@ -228,7 +230,7 @@ class ClassBuilder:
         with open(schema_path, "r") as f:
             schema = json.load(f)
 
-        schema_version = self.resolve_schema_version(schema.get("$schema", ""))
+        schema_version = resolve_schema_version(schema.get("$schema", ""))
 
         if schema_version == SchemaVersion.DRAFT_2020_12:
             self.def_keyword = "$defs"
