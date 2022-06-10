@@ -4,9 +4,7 @@ from typing import (
     Callable,
     Literal,
     Optional,
-    Type,
     Dict,
-    Type,
     ForwardRef,
     List,
     Set,
@@ -20,13 +18,15 @@ import logging
 import re
 
 from pydantic import create_model
-from pydantic.config import BaseConfig, Extra
 from pydantic.fields import Field, Undefined
 from pydantic.main import BaseModel
+import requests
+from respected_wizard.pydantic_utils import get_configs
 
 from respected_wizard.schema_versions import SchemaVersion, resolve_schema_version
 from respected_wizard.typing import resolve_type
 from respected_wizard.exceptions import (
+    InvalidReferenceException,
     SchemaConversionException,
     UnsupportedSchemaException,
 )
@@ -39,16 +39,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+REF_PATTERN = re.compile(r"(.*)#/((definitions)|(\$defs))/(.*)")
+
+
 class ClassBuilder:
     def __init__(self, schema_uri: str):
         """
         Args:
             schema_uri: URL pointing to schema
         """
-        self.schema = self.resolve_schema(schema_uri)
+        self.schema = self._resolve_schema(schema_uri)
         self.models: List = []
-        self.localns: Dict = {}
+        self.local_ns: Dict = {}
         self.contains_forward_refs: Set = set()
+        self.external_ns: Set[str] = set()
+        self.external_schemas: List[Tuple[str, Dict]] = []
 
     def build_classes(self) -> List:
         """
@@ -58,17 +63,25 @@ class ClassBuilder:
             List of Pydantic classes generated from schema
         """
         for name, definition in self.schema[self.def_keyword].items():
-            if definition["type"] == "object":
-                self.build_object_class(name, definition)
-            elif definition["type"] == "string":
-                self.build_simple_class(name, definition)
+            self._build_class(name, definition)
+        while len(self.external_schemas) > 0:
+            name: str = self.external_schemas[0][0]
+            definition: Dict = self.external_schemas[0][1]
+            self._build_class(name, definition)
+            self.external_schemas = self.external_schemas[1:]
 
         for model in self.contains_forward_refs:
-            model.update_forward_refs(**self.localns)
-        self.models = list(self.localns.values())
+            model.update_forward_refs(**self.local_ns)
+        self.models = list(self.local_ns.values())
         return self.models
 
-    def build_simple_class(self, name: str, definition: Dict):
+    def _build_class(self, name: str, definition: Dict) -> None:
+        if definition["type"] == "object":
+            self._build_object_class(name, definition)
+        elif definition["type"] == "string":
+            self._build_primitive_class(name, definition)
+
+    def _build_primitive_class(self, name: str, definition: Dict):
         """
         Construct classes derived from basic primitives (eg strings).
         Currently only supports strings.
@@ -111,16 +124,23 @@ class ClassBuilder:
         else:
             raise UnsupportedSchemaException
         model = type(name, type_tuple, attributes)
-        self.localns[name] = model
+        self.local_ns[name] = model
 
     def _handle_class_deprecation(self, name: str, definition: Dict):
         if definition.get("deprecated"):
             logger.warning(f"Class {name} is deprecated.")
 
-    def build_object_class(self, name: str, definition: Dict):
+    def _build_object_class(self, name: str, definition: Dict):
         """
-        Construct object-based class. Updates `self.contains_forward_refs` collection
-        if object contains references to other defined objects.
+        Construct object-based class.
+
+        Updates `self.local_ns` to include the completed model.
+        Also updates `self.contains_forward_refs` collection if object contains
+        references to other defined objects.
+
+        Args:
+            name: name of the object class
+            definition: dictionary containing class properties
         """
         fields: Dict[str, Union[Tuple[Any, Any], Callable]] = {}
         has_forward_ref = False
@@ -131,7 +151,7 @@ class ClassBuilder:
 
         for prop_name, prop_attrs in definition["properties"].items():
             if "$ref" in prop_attrs:
-                field_type: Any = ForwardRef(self.resolve_ref(prop_attrs["$ref"]))
+                field_type: Any = ForwardRef(self._resolve_ref(prop_attrs["$ref"]))
                 has_forward_ref = True
             else:
                 field_type = resolve_type(prop_attrs["type"])
@@ -181,62 +201,16 @@ class ClassBuilder:
                     field_type = Optional[field_type]
                 fields[prop_name] = (field_type, Field(**field_args))
 
-        config = self.get_configs(name, definition, allow_population_by_field_name)
+        config = get_configs(name, definition, allow_population_by_field_name)
         model = create_model(__model_name=name, __config__=config, **fields)  # type: ignore
         if "description" in definition:
             model.__doc__ = definition["description"]
 
-        self.localns[name] = model
+        self.local_ns[name] = model
         if has_forward_ref:
             self.contains_forward_refs.add(model)
 
-    @staticmethod
-    def get_configs(
-        name: str, definition: Dict, allow_population_by_field_name_setting: bool
-    ) -> Type[BaseConfig]:
-        """
-        Set model configs from definition attributes.
-
-        Args:
-            name: class name
-            definition: item definition from schema.
-            allow_population_by_field_name_setting: use attribute alias in output instead of
-                original name.
-
-        Returns:
-            Class based on BaseConfig with new attributes set, where necessary
-        """
-        if "additionalProperties" in definition:
-            additional_properties = definition["additionalProperties"]
-            if additional_properties is False:
-                extra_value = Extra.forbid
-            elif additional_properties is True:
-                extra_value = Extra.allow
-            else:
-                logger.warning(
-                    f"Unrecognized additionalProperties value: {additional_properties}"
-                )
-                extra_value = Extra.ignore
-        else:
-            extra_value = Extra.ignore
-
-        schema_extra_value = {}  # type: ignore
-        if "example" in definition:
-
-            def schema_extra_function(schema: Dict[str, Any], model: Type[name]) -> None:  # type: ignore
-                """Configure schema"""
-                schema["example"] = definition["example"]
-
-            schema_extra_value = schema_extra_function  # type: ignore
-
-        class ModifiedConfig(BaseConfig):
-            extra: Extra = extra_value
-            allow_population_by_field_name = allow_population_by_field_name_setting
-            schema_extra = schema_extra_value  # type: ignore
-
-        return ModifiedConfig
-
-    def resolve_schema(self, schema_uri: str) -> Dict:
+    def _resolve_schema(self, schema_uri: str) -> Dict:
         """
         Get schema version and set necessary config values.
 
@@ -259,19 +233,31 @@ class ClassBuilder:
 
         return schema
 
-    def resolve_ref(self, ref: str) -> str:
+    def _resolve_ref(self, ref: str) -> str:
         """
         Get class name from reference
+
+        Args:
+            ref: complete reference value
+            def_keyword: schema definition keyword (`$defs` in recent JSONschema versions)
 
         Return:
             Class name parsed from reference
 
         Raise:
-            UnsupportedSchemaException: if reference points beyond the document
+            InvalidReferenceException: if reference can't be parsed
         """
-        leader = f"#/{self.def_keyword}/"
-        if not ref.startswith(leader):
-            raise UnsupportedSchemaException(
-                "External references not currently supported"
-            )
-        return ref.split(leader)[1]
+        match = re.match(REF_PATTERN, ref)
+        if match is None:
+            raise InvalidReferenceException("Unable to parse provided reference")
+        groups = match.groups()
+        name = groups[4]
+        if groups[0] != "" and name not in self.external_ns:
+            response = requests.get(groups[0])
+            if response.status_code != 200:
+                raise InvalidReferenceException("Unable to retrieve provided reference")
+            response_json = response.json()
+            object_definition = response_json[groups[1]][name]
+            self.external_schemas.append((name, object_definition))
+            self.external_ns.add(name)
+        return name

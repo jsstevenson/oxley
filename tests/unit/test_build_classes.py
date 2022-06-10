@@ -18,6 +18,14 @@ def basic_vrs_models():
     return {m.__name__: m for m in models}
 
 
+@pytest.fixture(scope="module")
+def basic_vrsatile_models():
+    """Provide basic VRSATILE schema fixture."""
+    class_builder = ClassBuilder("tests/data/basic_vrsatile.json")
+    models = class_builder.build_classes()
+    return {m.__name__: m for m in models}
+
+
 def test_basic_schema(basic_schema_models):
     Point = basic_schema_models["Point"]
     point = Point(x=2, y=3)
@@ -132,3 +140,18 @@ def test_examples(basic_vrs_models):
         "start": "q22.2",
         "end": "q22.3",
     }
+
+
+def test_http_ref(basic_vrsatile_models):
+    """Test HTTP resolution of type definitions."""
+    CategoricalVariationDescriptor = basic_vrsatile_models[
+        "CategoricalVariationDescriptor"
+    ]
+    cvd = CategoricalVariationDescriptor(
+        id="clinvar:vcv001",
+        type="VariationDescriptor",
+        xrefs=["oncokb:999"],
+    )
+    assert cvd.id == "clinvar:vcv001"
+    assert cvd.type == "VariationDescriptor"
+    assert set(cvd.xrefs) == {"oncokb:999"}

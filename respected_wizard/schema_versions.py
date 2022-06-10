@@ -8,7 +8,7 @@ from respected_wizard.exceptions import UnsupportedSchemaException
 class SchemaVersion(str, Enum):
     """Define recognized JSONschema versions."""
 
-    DRAFT_07 = ("draft-07",)
+    DRAFT_07 = ("draft-07",)  # TODO tuple?
     DRAFT_2020_12 = "draft-2020-12"
 
 
