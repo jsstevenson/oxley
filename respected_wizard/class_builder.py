@@ -65,9 +65,9 @@ class ClassBuilder:
         for name, definition in self.schema[self.def_keyword].items():
             self._build_class(name, definition)
         while len(self.external_schemas) > 0:
-            name: str = self.external_schemas[0][0]
-            definition: Dict = self.external_schemas[0][1]
-            self._build_class(name, definition)
+            external_name: str = self.external_schemas[0][0]
+            external_definition: Dict = self.external_schemas[0][1]
+            self._build_class(external_name, external_definition)
             self.external_schemas = self.external_schemas[1:]
 
         for model in self.contains_forward_refs:
