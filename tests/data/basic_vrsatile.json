@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft/2020-12/schema",
+  "title": "GA4GH-Value-Object-Descriptor-Definitions",
+  "type": "object",
+  "$defs": {
+    "CategoricalVariationDescriptor": {
+      "description": "This descriptor class is used for describing Categorical Variation value objects.",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Descriptor ID; MUST be unique within document.",
+          "$ref": "https://raw.githubusercontent.com/ga4gh/vrs/1.2.1/schema/vrs.json#/definitions/CURIE"
+        },
+        "type": {
+          "type": "string",
+          "const": "VariationDescriptor",
+          "description": "MUST be \"VariationDescriptor\"."
+        },
+        "xrefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://raw.githubusercontent.com/ga4gh/vrs/1.2.1/schema/vrs.json#/definitions/CURIE"
+          },
+          "description": "List of CURIEs representing associated concepts."
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Extension"
+          },
+          "description": "List of resource-specific Extensions needed to describe the value object."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version of the Categorical Variation Descriptor."
+        }
+      },
+      "required": ["id", "type"]
+    },
+    "Extension": {
+      "description": "The Extension class provides VODs with a means to extend descriptions with other attributes unique to a content provider. These extensions are not expected to be natively understood under VRSATILE, but may be used for pre-negotiated exchange of message attributes when needed.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "Extension",
+          "description": "MUST be \"Extension\"."
+        },
+        "name": {
+          "type": "string",
+          "description": "A name for the Extension"
+        },
+        "value": {
+          "type": ["number", "string", "boolean", "object", "array", "null"],
+          "description": "Any primitive or structured object"
+        }
+      },
+      "required": ["name", "type"]
+    }
+  }
+}
