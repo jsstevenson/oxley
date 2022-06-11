@@ -1,35 +1,35 @@
 """Provide class construction tools."""
+import json
+import logging
+import re
+from enum import Enum
+from pathlib import Path
 from typing import (
     Any,
     Callable,
-    Literal,
-    Optional,
     Dict,
     ForwardRef,
     List,
+    Literal,
+    Optional,
     Set,
     Tuple,
     Union,
 )
-from enum import Enum
-from pathlib import Path
-import json
-import logging
-import re
 
+import requests
 from pydantic import create_model
 from pydantic.fields import Field, Undefined
 from pydantic.main import BaseModel
-import requests
 
-from .pydantic_utils import get_configs
-from .schema_versions import SchemaVersion, resolve_schema_version
-from .typing import resolve_type
 from .exceptions import (
     InvalidReferenceException,
     SchemaConversionException,
     UnsupportedSchemaException,
 )
+from .pydantic_utils import get_configs
+from .schema_versions import SchemaVersion, resolve_schema_version
+from .typing import resolve_type
 
 logging.basicConfig(
     level=logging.INFO,
@@ -86,8 +86,17 @@ class ClassBuilder:
 
     def _build_primitive_class(self, name: str, definition: Dict):
         """
-        Construct classes derived from basic primitives (eg strings).
+        Construct classes derived from basic primitives (eg strings). Bare strings and
+        numbers don't need to come through here, but any class that bounds their
+        possible values will. Updates `self.local_ns` with completed class definition.
         Currently only supports strings.
+
+        Args:
+            name: class name
+            definition: class properties from schema
+
+        Raises:
+            UnsupportedSchemaException: if non-string classes are provided.
         """
         attributes = {}
         type_tuple: Tuple = ()
@@ -129,10 +138,6 @@ class ClassBuilder:
         model = type(name, type_tuple, attributes)
         self.local_ns[name] = model
 
-    def _handle_class_deprecation(self, name: str, definition: Dict):
-        if definition.get("deprecated"):
-            logger.warning(f"Class {name} is deprecated.")
-
     def _build_object_class(self, name: str, definition: Dict):
         """
         Construct object-based class.
@@ -150,7 +155,8 @@ class ClassBuilder:
         required_fields = definition.get("required", set())
         allow_population_by_field_name = False
 
-        self._handle_class_deprecation(name, definition)
+        if definition.get("deprecated"):
+            logger.warning(f"Class {name} is deprecated.")
 
         for prop_name, prop_attrs in definition["properties"].items():
             if "$ref" in prop_attrs:

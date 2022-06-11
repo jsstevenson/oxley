@@ -1,5 +1,5 @@
 """Provide miscellaneous type utilities."""
-from typing import Optional, Type, List, Union, get_origin, get_args, TypeVar
+from typing import List, Optional, Type, TypeVar, Union, get_args, get_origin
 
 from .exceptions import SchemaConversionException
 
@@ -13,7 +13,8 @@ def resolve_type(type_value: Union[str, List[str]]) -> Optional[Type]:
             or a list for a union. Should consist only of JSON primitive types.
 
     Return:
-        Either a Type or None
+        Corresponding Pydantic-compatible Type -- which can include None for null
+        properties.
 
     Raise:
         SchemaConversionException if unrecognized types are encountered.
@@ -39,9 +40,17 @@ def resolve_type(type_value: Union[str, List[str]]) -> Optional[Type]:
         raise SchemaConversionException("unrecognized type")
 
 
-def is_optional_type(field: Type) -> bool:
-    """Check if type is Optional."""
-    return get_origin(field) is Union and type(None) in get_args(field)
+def is_optional_type(field_type: Type) -> bool:
+    """
+    Check if type is Optional.
+
+    Args:
+        field_type: complete field type
+
+    Return:
+        True if type is nullable, False otherwise
+    """
+    return get_origin(field_type) is Union and type(None) in get_args(field_type)
 
 
 JSONSchemaClass = TypeVar("JSONSchemaClass")

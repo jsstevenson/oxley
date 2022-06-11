@@ -1,10 +1,9 @@
 """Define miscellaneous utilities for working with Pydantic classes."""
 import logging
-from typing import Type, Dict, Any
+from typing import Any, Dict, Type
 
 from pydantic import BaseConfig
 from pydantic.config import Extra
-
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +14,7 @@ def get_configs(
     """
     Set model configs from definition attributes. This part of Pydantic gets a little
     hairy, so lots of type check suppression is needed to ensure successful
-    conformity to the necessary arg forms.
+    conformity to the necessary arg structure.
 
     Args:
         name: class name
