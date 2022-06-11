@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from respected_wizard.class_builder import ClassBuilder
+from oxley.class_builder import ClassBuilder
 
 
 @pytest.fixture(scope="function")
