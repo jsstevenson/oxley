@@ -48,9 +48,14 @@ def get_configs(
 
         schema_extra_value = schema_extra_function  # type: ignore
 
-    class ModifiedConfig(BaseConfig):
-        extra: Extra = extra_value
-        allow_population_by_field_name = allow_population_by_field_name_setting
-        schema_extra = schema_extra_value  # type: ignore
+    ModifiedConfig = type(
+        f"{name}Config",
+        (BaseConfig,),
+        {
+            "extra": extra_value,
+            "allow_population_by_field_name": allow_population_by_field_name_setting,
+            "schema_extra": schema_extra_value,
+        },
+    )
 
     return ModifiedConfig

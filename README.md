@@ -4,7 +4,7 @@
 
 ## What, why
 
-**Oxley** generates [Pydantic](https://github.com/samuelcolvin/pydantic) classes at runtime from user-provided JSON schema documents. Heavily indebted to packages like [Python-JSONschema-Objects](Packages like [Python-JSONschema-Objects](https://github.com/cwacek/python-jsonschema-objects), Oxley enables data validation pipelines to function dynamically and, with the help of Pydantic, interface directly with popular web frameworks like [FastAPI](https://github.com/tiangolo/fastapi).
+**Oxley** generates [Pydantic](https://github.com/samuelcolvin/pydantic) classes at runtime from user-provided JSON schema documents. Heavily indebted to packages like [Python-JSONschema-Objects](https://github.com/cwacek/python-jsonschema-objects), Oxley enables data validation pipelines to function dynamically, and with the help of Pydantic, interface directly with popular web frameworks such as [FastAPI](https://github.com/tiangolo/fastapi).
 
 ## Quick start
 

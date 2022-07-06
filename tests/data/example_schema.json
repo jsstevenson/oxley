@@ -1,0 +1,155 @@
+{
+  "$id": "https://github.com/jsstevenson/oxley",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "$defs": {
+    "Car": {
+      "type": "object",
+      "properties": {
+        "make": {
+          "type": "string",
+          "description": "The brand of the car, e.g.. Ford, Toyota, Subaru"
+        },
+        "model": { "type": "string" },
+        "year": { "type": "number" },
+        "body_style": {
+          "type": "string",
+          "enum": ["SUV", "sedan", "truck", "van"]
+        }
+      },
+      "required": ["model"],
+      "example": {
+        "make": "Nissan",
+        "model": "Pathfinder",
+        "year": 1991
+      }
+    },
+    "Garage": {
+      "type": "object",
+      "properties": {
+        "car": { "$ref": "#/$defs/Car" }
+      },
+      "additionalProperties": false
+    },
+    "FlexibleInt": {
+      "type": "object",
+      "properties": { "value": { "type": "number" } },
+      "additionalProperties": true
+    },
+    "FlexibleGarage": {
+      "type": "object",
+      "properties": {
+        "car": { "$ref": "#/$defs/Car" }
+      },
+      "additionalProperties": true
+    },
+    "Knight": {
+      "type": "object",
+      "deprecated": true,
+      "description": "A knight is a person granted an honorary title of knighthood by a head of state (including the Pope) or representative for service to the monarch, the church or the country, especially in a military capacity",
+      "properties": {
+        "title": {
+          "type": "string",
+          "default": "Sir Lancelot"
+        },
+        "age": {
+          "type": "number"
+        }
+      }
+    },
+    "CURIE": {
+      "additionalProperties": false,
+      "description": "A [W3C Compact URI](https://www.w3.org/TR/curie/) formatted string. A CURIE string has the structure ``prefix``:``reference``, as defined by the W3C syntax.",
+      "type": "string",
+      "pattern": "^\\w[^:]*:.+$",
+      "example": "ensembl:ENSG00000139618"
+    },
+    "document": {
+      "type": "object",
+      "properties": {
+        "identifier": { "$ref": "#/$defs/CURIE" },
+        "content": { "type": "string" }
+      },
+      "required": ["identifier", "content"]
+    },
+    "Phone": {
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "string"
+        },
+        "wall_mounted": {
+          "type": "boolean",
+          "deprecated": true
+        }
+      }
+    },
+    "Record": {
+      "type": "object",
+      "properties": {
+        "_id": {
+          "$ref": "#/$defs/CURIE"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "CategoricalVariationDescriptor": {
+      "description": "This descriptor class is used for describing Categorical Variation value objects.",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Descriptor ID; MUST be unique within document.",
+          "$ref": "https://raw.githubusercontent.com/ga4gh/vrs/1.2.1/schema/vrs.json#/definitions/CURIE"
+        },
+        "type": {
+          "type": "string",
+          "const": "VariationDescriptor",
+          "description": "MUST be \"VariationDescriptor\"."
+        },
+        "xrefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "https://raw.githubusercontent.com/ga4gh/vrs/1.2.1/schema/vrs.json#/definitions/CURIE"
+          },
+          "description": "List of CURIEs representing associated concepts."
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Extension"
+          },
+          "description": "List of resource-specific Extensions needed to describe the value object."
+        },
+        "version": {
+          "type": "string",
+          "description": "The version of the Categorical Variation Descriptor."
+        }
+      },
+      "required": ["id", "type"]
+    },
+    "Extension": {
+      "description": "The Extension class provides VODs with a means to extend descriptions with other attributes unique to a content provider. These extensions are not expected to be natively understood under VRSATILE, but may be used for pre-negotiated exchange of message attributes when needed.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "Extension",
+          "description": "MUST be \"Extension\"."
+        },
+        "name": {
+          "type": "string",
+          "description": "A name for the Extension"
+        },
+        "value": {
+          "type": ["number", "string", "boolean", "object", "array", "null"],
+          "description": "Any primitive or structured object"
+        }
+      },
+      "required": ["name", "type"]
+    }
+  }
+}
