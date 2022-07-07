@@ -5,7 +5,7 @@ from oxley.class_builder import ClassBuilder
 
 
 def test_build_primitive_class():
-    cb = ClassBuilder("tests/data/basic_schema.json")
+    cb = ClassBuilder("tests/data/example_schema.json")
     cb._build_primitive_class(
         "PhoneNumber",
         {"type": "string", "pattern": "^\\d\\d\\d-\\d\\d\\d-\\d\\d\\d\\d$"},

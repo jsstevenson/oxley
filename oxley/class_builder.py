@@ -228,7 +228,7 @@ class ClassBuilder:
                 vals = {str(p).upper(): p for p in prop_attrs["enum"]}
                 enum_type = Enum(prop_name, vals, type=str)  # type: ignore
                 if prop_name not in required_fields:
-                    enum_type = Optional[enum_type]
+                    enum_type = Optional[enum_type]  # type: ignore
                 fields[prop_name] = (enum_type, Field(**field_args))
             else:
                 if prop_name not in required_fields:

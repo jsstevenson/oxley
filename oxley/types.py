@@ -59,7 +59,7 @@ def is_optional_type(field_type: Type) -> bool:
 JSONSchemaClass = TypeVar("JSONSchemaClass")
 
 
-def build_enum(field_name: str, field_definition: Dict) -> Enum:
+def build_enum(field_name: str, field_definition: Dict) -> Type[Enum]:
     """
     Construct enum type from field definition.
     Currently only works with primitive types, and requires type uniformity.
@@ -101,7 +101,7 @@ def build_enum(field_name: str, field_definition: Dict) -> Enum:
                 f"Unable to make enum key from provided name: {key}"
             )
 
-    enum_type = Enum(
+    enum_type = Enum(  # type: ignore
         field_name, {make_enum_key(p): p for p in field_definition["enum"]}
     )
     return enum_type
