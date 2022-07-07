@@ -1,39 +1,43 @@
 """Provide class construction tools."""
+import json
+import logging
+import re
+from enum import Enum
+from pathlib import Path
 from typing import (
     Any,
     Callable,
-    Literal,
-    Optional,
     Dict,
     ForwardRef,
     List,
+    Literal,
+    Optional,
     Set,
     Tuple,
     Union,
 )
-from enum import Enum
-from pathlib import Path
-import json
-import logging
-import re
 
-from pydantic import create_model
+import requests
+from pydantic import create_model, validator
+from pydantic.class_validators import root_validator
 from pydantic.fields import Field, Undefined
 from pydantic.main import BaseModel
-import requests
-from respected_wizard.pydantic_utils import get_configs
 
-from respected_wizard.schema_versions import SchemaVersion, resolve_schema_version
-from respected_wizard.typing import resolve_type
-from respected_wizard.exceptions import (
+from .exceptions import (
     InvalidReferenceException,
     SchemaConversionException,
     UnsupportedSchemaException,
 )
+from .pydantic_utils import get_configs
+from .schema_versions import SchemaVersion, resolve_schema_version
+from .types import resolve_type
 
 logging.basicConfig(
     level=logging.INFO,
-    handlers=[logging.FileHandler("respected_wizard.log"), logging.StreamHandler()],
+    handlers=[
+        logging.FileHandler("pydantic_jsonschema_objects.log"),
+        logging.StreamHandler(),
+    ],
 )
 
 logger = logging.getLogger(__name__)
@@ -65,8 +69,7 @@ class ClassBuilder:
         for name, definition in self.schema[self.def_keyword].items():
             self._build_class(name, definition)
         while len(self.external_schemas) > 0:
-            external_name: str = self.external_schemas[0][0]
-            external_definition: Dict = self.external_schemas[0][1]
+            external_name, external_definition = self.external_schemas[0]
             self._build_class(external_name, external_definition)
             self.external_schemas = self.external_schemas[1:]
 
@@ -83,8 +86,17 @@ class ClassBuilder:
 
     def _build_primitive_class(self, name: str, definition: Dict):
         """
-        Construct classes derived from basic primitives (eg strings).
+        Construct classes derived from basic primitives (eg strings). Bare strings and
+        numbers don't need to come through here, but any class that bounds their
+        possible values will. Updates `self.local_ns` with completed class definition.
         Currently only supports strings.
+
+        Args:
+            name: class name
+            definition: class properties from schema
+
+        Raises:
+            UnsupportedSchemaException: if non-string classes are provided.
         """
         attributes = {}
         type_tuple: Tuple = ()
@@ -126,10 +138,6 @@ class ClassBuilder:
         model = type(name, type_tuple, attributes)
         self.local_ns[name] = model
 
-    def _handle_class_deprecation(self, name: str, definition: Dict):
-        if definition.get("deprecated"):
-            logger.warning(f"Class {name} is deprecated.")
-
     def _build_object_class(self, name: str, definition: Dict):
         """
         Construct object-based class.
@@ -141,13 +149,26 @@ class ClassBuilder:
         Args:
             name: name of the object class
             definition: dictionary containing class properties
+
+        Raise:
+            SchemaConversionException:
+             * if unsupported types are provided as consts
         """
         fields: Dict[str, Union[Tuple[Any, Any], Callable]] = {}
         has_forward_ref = False
         required_fields = definition.get("required", set())
         allow_population_by_field_name = False
+        validators: Dict = {}
 
-        self._handle_class_deprecation(name, definition)
+        if definition.get("deprecated") is True:
+
+            def class_deprecation_warning(cls, values):
+                logger.warning(f"Class {name} is deprecated.")
+                return values
+
+            validators["class_deprecated"] = root_validator(pre=True, allow_reuse=True)(
+                class_deprecation_warning
+            )
 
         for prop_name, prop_attrs in definition["properties"].items():
             if "$ref" in prop_attrs:
@@ -180,11 +201,22 @@ class ClassBuilder:
 
                 fields["dict"] = dict
 
+            if prop_attrs.get("deprecated") is True:
+
+                def property_deprecated_warning(cls, v):
+                    logger.warning(f"Property {name}.{prop_name} is deprecated")
+                    return v
+
+                validators[f"{prop_name}_deprecated"] = validator(
+                    prop_name, allow_reuse=True
+                )(property_deprecated_warning)
+
             if "const" in prop_attrs:
                 const_value = prop_attrs["const"]
                 if not any(
                     [isinstance(const_value, t) for t in (str, int, float, bool)]
                 ):
+                    # TODO -- construct complex object consts
                     raise SchemaConversionException
                 else:
                     const_type = Literal[const_value]  # type: ignore
@@ -195,6 +227,8 @@ class ClassBuilder:
             elif "enum" in prop_attrs:
                 vals = {str(p).upper(): p for p in prop_attrs["enum"]}
                 enum_type = Enum(prop_name, vals, type=str)  # type: ignore
+                if prop_name not in required_fields:
+                    enum_type = Optional[enum_type]  # type: ignore
                 fields[prop_name] = (enum_type, Field(**field_args))
             else:
                 if prop_name not in required_fields:
@@ -202,7 +236,7 @@ class ClassBuilder:
                 fields[prop_name] = (field_type, Field(**field_args))
 
         config = get_configs(name, definition, allow_population_by_field_name)
-        model = create_model(__model_name=name, __config__=config, **fields)  # type: ignore
+        model = create_model(__model_name=name, __config__=config, __validators__=validators, **fields)  # type: ignore
         if "description" in definition:
             model.__doc__ = definition["description"]
 

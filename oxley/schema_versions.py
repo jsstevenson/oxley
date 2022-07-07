@@ -2,7 +2,7 @@
 import re
 from enum import Enum
 
-from respected_wizard.exceptions import UnsupportedSchemaException
+from .exceptions import UnsupportedSchemaException
 
 
 class SchemaVersion(str, Enum):
@@ -14,7 +14,7 @@ class SchemaVersion(str, Enum):
 
 SCHEMA_MATCH_PATTERNS = {
     re.compile(
-        r"^http(s)?://(www\.)?json-schema.org/draft/2020-12/schema$"
+        r"^https://(www\.)?json-schema.org/draft/2020-12/schema$"
     ): SchemaVersion.DRAFT_2020_12,
     re.compile(
         r"^http(s)?://(www\.)?json-schema.org/draft-07/schema$"
