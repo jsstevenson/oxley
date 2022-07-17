@@ -173,3 +173,77 @@ def test_http_ref(example_schema_classes):
     assert cvd.id == "clinvar:vcv001"
     assert cvd.type == "VariationDescriptor"
     assert set(cvd.xrefs) == {"oncokb:999"}
+
+
+def test_array(example_schema_classes):
+    """Test construction of classes that use arrays.
+    Cases lifted from https://json-schema.org/understanding-json-schema/reference/array.html
+    """
+    ArrayTester = example_schema_classes["ArrayTester"]
+    tester = ArrayTester(values_list=[1, 2, 3, 4, 5])
+    assert tester.values_list == [1, 2, 3, 4, 5]
+    assert ArrayTester(values_list=[3, "different", {"types": "of values"}])
+    with pytest.raises(ValidationError):
+        ArrayTester(values_list={"Not": "an array"})
+
+    assert ArrayTester(numbers_list=[1, 2, 3, 4, 5])
+    with pytest.raises(ValidationError):
+        ArrayTester(numbers_list=[1, 2, "a", 4, 5])
+    assert ArrayTester(numbers_list=[])
+
+    assert ArrayTester(address_tuple=[1600, "Pennsylvania", "Avenue", "NW"])
+    with pytest.raises(ValidationError):
+        ArrayTester(address_tuple=[24, "Sussex", "Drive"])
+    with pytest.raises(ValidationError):
+        ArrayTester(address_tuple=["Palais de l'Élysée"])
+    assert ArrayTester(address_tuple=[10, "Downing", "Street"])
+    assert ArrayTester(
+        address_tuple=[1600, "Pennsylvania", "Avenue", "NW", "Washington"]
+    )
+
+    assert ArrayTester(exclusive_address_tuple=[1600, "Pennsylvania", "Avenue", "NW"])
+    assert ArrayTester(exclusive_address_tuple=[1600, "Pennsylvania", "Avenue"])
+    with pytest.raises(ValidationError):
+        ArrayTester(
+            exclusive_address_tuple=[1600, "Pennsylvania", "Avenue", "NW", "Washington"]
+        )
+
+    assert ArrayTester(
+        exclusive_address_tuple_string=[
+            1600,
+            "Pennsylvania",
+            "Avenue",
+            "NW",
+            "Washington",
+        ]
+    )
+    with pytest.raises(ValidationError):
+        ArrayTester(
+            exclusive_address_tuple_string=[1600, "Pennsylvania", "Avenue", "NW", 20500]
+        )
+
+    assert ArrayTester(contains_array=["life", "universe", "everything", 42])
+    with pytest.raises(ValidationError):
+        ArrayTester(contains_array=["life", "universe", "everything", "forty-two"])
+    assert ArrayTester(contains_array=[1, 2, 3, 4, 5])
+
+    with pytest.raises(ValidationError):
+        ArrayTester(min_max_contains_array=["apple", "orange", 2])
+    with pytest.raises(ValidationError):
+        ArrayTester(min_max_contains_array=["apple", "orange", 2, 4, 8, 16])
+    assert ArrayTester(min_max_contains_array=["apple", "orange", 2, 4])
+    assert ArrayTester(min_max_contains_array=["apple", "orange", 2, 4, 8])
+
+    with pytest.raises(ValidationError):
+        ArrayTester(array_length=[])
+    with pytest.raises(ValidationError):
+        ArrayTester(array_length=[1])
+    assert ArrayTester(array_length=[1, 2])
+    assert ArrayTester(array_length=[1, 2, 3])
+    with pytest.raises(ValidationError):
+        ArrayTester(array_length=[1, 2, 3, 4])
+
+    assert ArrayTester(uniqueness_array=[1, 2, 3, 4, 5])
+    assert ArrayTester(uniqueness_array=[])
+    with pytest.raises(ValidationError):
+        ArrayTester(uniqueness_array=[1, 2, 3, 3, 4])

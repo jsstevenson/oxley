@@ -14,6 +14,7 @@ from typing import (
     Optional,
     Set,
     Tuple,
+    Type,
     Union,
 )
 
@@ -26,11 +27,18 @@ from pydantic.main import BaseModel
 from .exceptions import (
     InvalidReferenceException,
     SchemaConversionException,
+    SchemaParseException,
     UnsupportedSchemaException,
 )
 from .pydantic_utils import get_configs
 from .schema_versions import SchemaVersion, resolve_schema_version
-from .types import resolve_type
+from .types import build_enum, resolve_type
+from .validators import (
+    create_array_contains_validator,
+    create_array_length_validator,
+    create_array_unique_validator,
+    create_tuple_validator,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -83,6 +91,35 @@ class ClassBuilder:
             self._build_object_class(name, definition)
         elif definition["type"] == "string":
             self._build_primitive_class(name, definition)
+
+    def _resolve_ref(self, ref: str) -> str:
+        """
+        Get class name from reference and update external schemas tracking
+
+        Args:
+            ref: complete reference value
+            def_keyword: schema definition keyword (`$defs` in recent JSONschema versions)
+
+        Return:
+            Class name parsed from reference
+
+        Raise:
+            InvalidReferenceException: if reference can't be parsed
+        """
+        match = re.match(REF_PATTERN, ref)
+        if match is None:
+            raise InvalidReferenceException("Unable to parse provided reference")
+        groups = match.groups()
+        name = groups[4]
+        if groups[0] != "" and name not in self.external_ns:
+            response = requests.get(groups[0])
+            if response.status_code != 200:
+                raise InvalidReferenceException("Unable to retrieve provided reference")
+            response_json = response.json()
+            object_definition = response_json[groups[1]][name]
+            self.external_schemas.append((name, object_definition))
+            self.external_ns.add(name)
+        return name
 
     def _build_primitive_class(self, name: str, definition: Dict):
         """
@@ -138,7 +175,177 @@ class ClassBuilder:
         model = type(name, type_tuple, attributes)
         self.local_ns[name] = model
 
-    def _build_object_class(self, name: str, definition: Dict):
+    def _build_tuple_item(
+        self, item: Dict, prop_name: str
+    ) -> Optional[Union[Type, ForwardRef]]:
+        """
+        Process individual tuple item annotation.
+        This is structured slightly differently from how object types are defined,
+        so we have a separate method, but it'd be nice to generalize in a refactor.
+
+        Args:
+            item: the item value under the array
+            prop_name: property name
+
+        Return:
+            Type param to declare the array with
+
+        Raises:
+            SchemaParseException: if the item declaration doesn't conform to expected
+            structure.
+        """
+        if "type" in item:
+            return resolve_type(item["type"])
+        elif "enum" in item:
+            return build_enum(f"{prop_name}AnonymousEnum", item)
+        elif "$ref" in item:
+            return ForwardRef(self._resolve_ref(item["$ref"]))
+        else:
+            raise SchemaParseException("Unrecognized tuple item type")
+
+    def _build_array(self, prop_name: str, prop_attrs: Dict) -> Tuple[Type, Dict]:
+        """ """
+        validators = {}
+
+        if "contains" in prop_attrs:
+            validate_contains = create_array_contains_validator(
+                prop_attrs["contains"],
+                prop_attrs.get("minContains"),
+                prop_attrs.get("maxContains"),
+            )
+            validators[f"validate_{prop_name}_contains"] = validator(
+                prop_name, allow_reuse=True
+            )(validate_contains)
+            array_type = List
+
+        if "prefixItems" in prop_attrs:
+            validate_tuple = create_tuple_validator(prop_attrs)
+            validators[f"validate_{prop_name}_tuple"] = validator(
+                prop_name, allow_reuse=True
+            )(validate_tuple)
+            array_type = List
+
+        elif "items" in prop_attrs:
+            if "$ref" in prop_attrs["items"]:
+                item_type: Any = ForwardRef(
+                    self._resolve_ref(prop_attrs["items"]["$ref"])
+                )
+            elif "type" in prop_attrs["items"]:
+                raw_array_type = prop_attrs["items"]["type"]
+                item_type = resolve_type(raw_array_type)
+            else:
+                raise SchemaParseException(
+                    "`items` property, if it exists, should include either reference or `type` properties"
+                )
+            array_type = List[item_type]  # type: ignore
+        else:
+            array_type = List
+
+        if "minItems" in prop_attrs or "maxItems" in prop_attrs:
+            length_validator = create_array_length_validator(
+                prop_attrs.get("minItems"), prop_attrs.get("maxItems")
+            )
+            validators[f"validate_{prop_name}_length"] = validator(
+                prop_name, allow_reuse=True
+            )(length_validator)
+
+        if prop_attrs.get("uniqueItems") is True:
+            unique_validator = create_array_unique_validator()
+            validators[f"validate_{prop_name}_unique"] = validator(
+                prop_name, allow_reuse=True
+            )(unique_validator)
+
+        return array_type, validators
+
+    def _build_property(
+        self, class_name: str, prop_name: str, prop_attrs: Dict, required_field: bool
+    ):
+        """
+        Construct individual object property.
+
+        Args:
+            class_name: name of class
+            prop_name: name of property
+            prop_attrs: property definition
+            required_field: if True, field is required, optional otherwise
+
+        Raise:
+            SchemaConversionException: if unsupported types are provided as consts
+        """
+        has_forward_ref = False
+        allow_population_by_field_name = False
+        validators = {}
+        fields: Dict[str, Union[Callable, Tuple]] = {}
+
+        if "$ref" in prop_attrs:
+            field_type: Any = ForwardRef(self._resolve_ref(prop_attrs["$ref"]))
+            has_forward_ref = True
+        else:
+            raw_type_value = prop_attrs["type"]
+            if raw_type_value == "array":
+                field_type, arr_validators = self._build_array(prop_name, prop_attrs)
+                validators.update(arr_validators)
+            else:
+                field_type = resolve_type(raw_type_value)
+
+        field_args = {"description": prop_attrs.get("description")}
+        if "default" in prop_attrs:
+            field_args["default"] = prop_attrs["default"]
+        else:
+            field_args["default"] = Undefined
+
+        if prop_name[0] == "_":
+            alt_name = prop_name[:]
+            field_args["alias"] = alt_name
+            allow_population_by_field_name = True
+
+            main_field_name = alt_name[1:]
+
+            def dict(self):
+                d = BaseModel.dict(self)
+                if main_field_name in d:
+                    d[alt_name[:]] = d[main_field_name]
+                    del d[main_field_name]
+                return d
+
+            prop_name = main_field_name
+
+            fields["dict"] = dict
+
+        if prop_attrs.get("deprecated") is True:
+
+            def property_deprecated_warning(cls, v):
+                logger.warning(f"Property {class_name}.{prop_name} is deprecated")
+                return v
+
+            validators[f"{prop_name}_deprecated"] = validator(
+                prop_name, allow_reuse=True
+            )(property_deprecated_warning)
+
+        if "const" in prop_attrs:
+            const_value = prop_attrs["const"]
+            if not any([isinstance(const_value, t) for t in (str, int, float, bool)]):
+                # TODO -- construct complex object consts
+                raise SchemaConversionException
+            else:
+                const_type = Literal[const_value]  # type: ignore
+            if not required_field:
+                const_type = Optional[const_type]  # type: ignore
+            field_args["default"] = const_value
+            fields[prop_name] = (const_type, Field(**field_args))  # type: ignore
+        elif "enum" in prop_attrs:
+            vals = {str(p).upper(): p for p in prop_attrs["enum"]}
+            enum_type = Enum(prop_name, vals, type=str)  # type: ignore
+            if not required_field:
+                enum_type = Optional[enum_type]  # type: ignore
+            fields[prop_name] = (enum_type, Field(**field_args))  # type: ignore
+        else:
+            if not required_field:
+                field_type = Optional[field_type]
+            fields[prop_name] = (field_type, Field(**field_args))  # type: ignore
+        return fields, validators, has_forward_ref, allow_population_by_field_name
+
+    def _build_object_class(self, name: str, definition: Dict) -> None:
         """
         Construct object-based class.
 
@@ -149,10 +356,6 @@ class ClassBuilder:
         Args:
             name: name of the object class
             definition: dictionary containing class properties
-
-        Raise:
-            SchemaConversionException:
-             * if unsupported types are provided as consts
         """
         fields: Dict[str, Union[Tuple[Any, Any], Callable]] = {}
         has_forward_ref = False
@@ -171,69 +374,17 @@ class ClassBuilder:
             )
 
         for prop_name, prop_attrs in definition["properties"].items():
-            if "$ref" in prop_attrs:
-                field_type: Any = ForwardRef(self._resolve_ref(prop_attrs["$ref"]))
-                has_forward_ref = True
-            else:
-                field_type = resolve_type(prop_attrs["type"])
-
-            field_args = {"description": prop_attrs.get("description")}
-            if "default" in prop_attrs:
-                field_args["default"] = prop_attrs["default"]
-            else:
-                field_args["default"] = Undefined
-
-            if prop_name[0] == "_":
-                alt_name = prop_name[:]
-                field_args["alias"] = alt_name
-                allow_population_by_field_name = True
-
-                main_field_name = alt_name[1:]
-
-                def dict(self):
-                    d = BaseModel.dict(self)
-                    if main_field_name in d:
-                        d[alt_name[:]] = d[main_field_name]
-                        del d[main_field_name]
-                    return d
-
-                prop_name = main_field_name
-
-                fields["dict"] = dict
-
-            if prop_attrs.get("deprecated") is True:
-
-                def property_deprecated_warning(cls, v):
-                    logger.warning(f"Property {name}.{prop_name} is deprecated")
-                    return v
-
-                validators[f"{prop_name}_deprecated"] = validator(
-                    prop_name, allow_reuse=True
-                )(property_deprecated_warning)
-
-            if "const" in prop_attrs:
-                const_value = prop_attrs["const"]
-                if not any(
-                    [isinstance(const_value, t) for t in (str, int, float, bool)]
-                ):
-                    # TODO -- construct complex object consts
-                    raise SchemaConversionException
-                else:
-                    const_type = Literal[const_value]  # type: ignore
-                if prop_name not in required_fields:
-                    const_type = Optional[const_type]  # type: ignore
-                field_args["default"] = const_value
-                fields[prop_name] = (const_type, Field(**field_args))
-            elif "enum" in prop_attrs:
-                vals = {str(p).upper(): p for p in prop_attrs["enum"]}
-                enum_type = Enum(prop_name, vals, type=str)  # type: ignore
-                if prop_name not in required_fields:
-                    enum_type = Optional[enum_type]  # type: ignore
-                fields[prop_name] = (enum_type, Field(**field_args))
-            else:
-                if prop_name not in required_fields:
-                    field_type = Optional[field_type]
-                fields[prop_name] = (field_type, Field(**field_args))
+            field_required = prop_name in required_fields
+            (
+                new_fields,
+                new_validators,
+                prop_fwd_ref,
+                prop_pop_field_name,
+            ) = self._build_property(name, prop_name, prop_attrs, field_required)
+            fields.update(new_fields)
+            validators.update(new_validators)
+            has_forward_ref |= prop_fwd_ref
+            allow_population_by_field_name |= prop_pop_field_name
 
         config = get_configs(name, definition, allow_population_by_field_name)
         model = create_model(__model_name=name, __config__=config, __validators__=validators, **fields)  # type: ignore
@@ -266,32 +417,3 @@ class ClassBuilder:
             self.def_keyword = "definitions"
 
         return schema
-
-    def _resolve_ref(self, ref: str) -> str:
-        """
-        Get class name from reference
-
-        Args:
-            ref: complete reference value
-            def_keyword: schema definition keyword (`$defs` in recent JSONschema versions)
-
-        Return:
-            Class name parsed from reference
-
-        Raise:
-            InvalidReferenceException: if reference can't be parsed
-        """
-        match = re.match(REF_PATTERN, ref)
-        if match is None:
-            raise InvalidReferenceException("Unable to parse provided reference")
-        groups = match.groups()
-        name = groups[4]
-        if groups[0] != "" and name not in self.external_ns:
-            response = requests.get(groups[0])
-            if response.status_code != 200:
-                raise InvalidReferenceException("Unable to retrieve provided reference")
-            response_json = response.json()
-            object_definition = response_json[groups[1]][name]
-            self.external_schemas.append((name, object_definition))
-            self.external_ns.add(name)
-        return name
