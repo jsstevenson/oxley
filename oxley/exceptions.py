@@ -2,20 +2,34 @@
 
 
 class UnsupportedSchemaException(Exception):
-    """Raise error where schema doesn't use one of the package-supported JSONSchema
-    versions."""
+    """
+    Raise error where schema doesn't use one of the package-supported JSONSchema
+    versions.
+    """
 
     pass
 
 
 class InvalidReferenceException(Exception):
-    """Raise error when reference values can't be parsed."""
+    """
+    Raise error when reference values can't be parsed.
+    """
 
     pass
 
 
 class SchemaConversionException(Exception):
-    """Raise errors where valid JSONSchema elements may not fit into the Python type or
-    object systems."""
+    """
+    Raise errors where valid JSONSchema elements may not fit into the Python type or
+    object systems.
+    """
+
+    pass
+
+
+class SchemaParseException(Exception):
+    """
+    Raise errors where provided schema appears to be invalid.
+    """
 
     pass

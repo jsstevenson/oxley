@@ -87,6 +87,9 @@ def build_enum(field_name: str, field_definition: Dict) -> Type[Enum]:
     prior_keys = []
 
     def make_enum_key(name: Union[str, int, float, bool]):
+        """
+        Hacky way of coercing a legal key out of an enum value
+        """
         key = re.sub(r"\W|^(?=\d)", "_", str(name).upper())
         if not key or key not in prior_keys:
             prior_keys.append(key)
@@ -102,6 +105,8 @@ def build_enum(field_name: str, field_definition: Dict) -> Type[Enum]:
             )
 
     enum_type = Enum(  # type: ignore
-        field_name, {make_enum_key(p): p for p in field_definition["enum"]}
+        field_name,
+        {make_enum_key(p): p for p in field_definition["enum"]},
+        type=value_types[0],
     )
     return enum_type

@@ -145,11 +145,75 @@
           "description": "A name for the Extension"
         },
         "value": {
-          "type": ["number", "string", "boolean", "object", "array", "null"],
+          "type": ["number", "string", "boolean", "object", "null"],
           "description": "Any primitive or structured object"
         }
       },
       "required": ["name", "type"]
+    },
+    "ArrayTester": {
+      "type": "object",
+      "properties": {
+        "values_list": { "type": "array" },
+        "numbers_list": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "address_tuple": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "number" },
+            { "type": "string" },
+            { "enum": ["Street", "Avenue", "Boulevard"] },
+            { "enum": ["NW", "NE", "SW", "SE"] }
+          ]
+        },
+        "exclusive_address_tuple": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "number" },
+            { "type": "string" },
+            { "enum": ["Street", "Avenue", "Boulevard"] },
+            { "enum": ["NW", "NE", "SW", "SE"] }
+          ],
+          "items": false
+        },
+        "exclusive_address_tuple_string": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "number" },
+            { "type": "string" },
+            { "enum": ["Street", "Avenue", "Boulevard"] },
+            { "enum": ["NW", "NE", "SW", "SE"] }
+          ],
+          "items": { "type": "string" }
+        },
+        "contains_array": {
+          "type": "array",
+          "contains": {
+            "type": "number"
+          }
+        },
+        "min_max_contains_array": {
+          "type": "array",
+          "contains": {
+            "type": "number"
+          },
+          "minContains": 2,
+          "maxContains": 3
+        },
+        "array_length": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3
+        },
+        "uniqueness_array": {
+          "type": "array",
+          "uniqueItems": true
+        }
+      }
     }
   }
 }
