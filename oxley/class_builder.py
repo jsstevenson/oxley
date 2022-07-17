@@ -175,7 +175,9 @@ class ClassBuilder:
         model = type(name, type_tuple, attributes)
         self.local_ns[name] = model
 
-    def _build_tuple_item(self, item: Dict, prop_name: str) -> Type:
+    def _build_tuple_item(
+        self, item: Dict, prop_name: str
+    ) -> Optional[Union[Type, ForwardRef]]:
         """
         Process individual tuple item annotation.
         This is structured slightly differently from how object types are defined,
@@ -197,7 +199,7 @@ class ClassBuilder:
         elif "enum" in item:
             return build_enum(f"{prop_name}AnonymousEnum", item)
         elif "$ref" in item:
-            return self._resolve_ref(item["$ref"])
+            return ForwardRef(self._resolve_ref(item["$ref"]))
         else:
             raise SchemaParseException("Unrecognized tuple item type")
 
@@ -273,7 +275,7 @@ class ClassBuilder:
         has_forward_ref = False
         allow_population_by_field_name = False
         validators = {}
-        fields = {}
+        fields: Dict[str, Union[Callable, Tuple]] = {}
 
         if "$ref" in prop_attrs:
             field_type: Any = ForwardRef(self._resolve_ref(prop_attrs["$ref"]))
@@ -330,17 +332,17 @@ class ClassBuilder:
             if not required_field:
                 const_type = Optional[const_type]  # type: ignore
             field_args["default"] = const_value
-            fields[prop_name] = (const_type, Field(**field_args))
+            fields[prop_name] = (const_type, Field(**field_args))  # type: ignore
         elif "enum" in prop_attrs:
             vals = {str(p).upper(): p for p in prop_attrs["enum"]}
             enum_type = Enum(prop_name, vals, type=str)  # type: ignore
             if not required_field:
                 enum_type = Optional[enum_type]  # type: ignore
-            fields[prop_name] = (enum_type, Field(**field_args))
+            fields[prop_name] = (enum_type, Field(**field_args))  # type: ignore
         else:
             if not required_field:
                 field_type = Optional[field_type]
-            fields[prop_name] = (field_type, Field(**field_args))
+            fields[prop_name] = (field_type, Field(**field_args))  # type: ignore
         return fields, validators, has_forward_ref, allow_population_by_field_name
 
     def _build_object_class(self, name: str, definition: Dict) -> None:
