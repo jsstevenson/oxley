@@ -1,5 +1,4 @@
 """Provide class construction tools."""
-import json
 import logging
 import re
 from enum import Enum
@@ -31,7 +30,7 @@ from .exceptions import (
     UnsupportedSchemaException,
 )
 from .pydantic_utils import get_configs
-from .schema_versions import SchemaVersion, resolve_schema_version
+from .schema import SchemaVersion, get_schema, resolve_schema_version
 from .types import build_enum, resolve_type
 from .validators import (
     create_array_contains_validator,
@@ -55,12 +54,12 @@ REF_PATTERN = re.compile(r"(.*)#/((definitions)|(\$defs))/(.*)")
 
 
 class ClassBuilder:
-    def __init__(self, schema_uri: str):
+    def __init__(self, schema: Union[Path, str, Dict]):
         """
         Args:
             schema_uri: URL pointing to schema
         """
-        self.schema = self._resolve_schema(schema_uri)
+        self.schema = self._resolve_schema(schema)
         self.models: List = []
         self.local_ns: Dict = {}
         self.contains_forward_refs: Set = set()
@@ -395,20 +394,23 @@ class ClassBuilder:
         if has_forward_ref:
             self.contains_forward_refs.add(model)
 
-    def _resolve_schema(self, schema_uri: str) -> Dict:
+    def _resolve_schema(self, schema_input: Union[Path, str, Dict]) -> Dict:
         """
         Get schema version and set necessary config values.
+        Tries to resolve input arg in the following order:
+          * as a Path object
+          * as a Path-like string to a local file
+          * as an HTTP reference to a JSONschema document
+          * as a Dict constructed from a JSONschema document
 
         Args:
-            schema_uri: URL to schema instance
+            schema_input: class builder input. Could be a Path or pathlike object to a local file,
+                an HTTP URL, or a plain Dict built from JSON input elsewhere.
 
         Returns:
             Schema as dict
         """
-        schema_path = Path(schema_uri)
-        with open(schema_path, "r") as f:
-            schema = json.load(f)
-
+        schema = get_schema(schema_input)
         schema_version = resolve_schema_version(schema.get("$schema", ""))
 
         if schema_version == SchemaVersion.DRAFT_2020_12:
