@@ -1,6 +1,14 @@
 """Provide package-wide Exceptions."""
 
 
+class InvalidSchemaException(Exception):
+    """
+    Raise error when provided schema can't be opened or dereferenced.
+    """
+
+    pass
+
+
 class UnsupportedSchemaException(Exception):
     """
     Raise error where schema doesn't use one of the package-supported JSONSchema
