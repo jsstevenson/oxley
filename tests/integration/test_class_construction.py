@@ -293,3 +293,8 @@ def test_number(example_schema_classes):
         NumberTester(range=100)
     with pytest.raises(ValidationError):
         NumberTester(range=101)
+
+    BigNumber = example_schema_classes["BigNumber"]
+    assert BigNumber(1001)
+    with pytest.raises(ValidationError):
+        BigNumber(999)

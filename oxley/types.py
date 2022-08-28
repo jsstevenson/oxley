@@ -1,11 +1,14 @@
-"""Provide miscellaneous type utilities."""
+"""Provide miscellaneous types and type utilities."""
 import re
 from enum import Enum
 from inspect import getmro
 from string import ascii_uppercase
-from typing import Dict, List, Optional, Type, TypeVar, Union, get_args, get_origin
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union, get_args, get_origin
 
-from pydantic import StrictFloat, StrictInt
+from pydantic import StrictFloat, StrictInt, ValidationError
+from pydantic.errors import FloatError, PydanticValueError
+from pydantic.types import confloat, conint
+from pydantic.validators import number_multiple_validator, number_size_validator
 
 from .exceptions import SchemaConversionException
 
@@ -18,6 +21,18 @@ TYPE_CONVERSION_TABLE = {
     "object": dict,
     "null": None,
 }
+
+
+def get_typeclass(type_definition: Dict[str, Any]) -> Type:
+    """
+    TODO
+    """
+    if type_definition.get("type") in ("number", "integer"):
+        return build_number_class(type_definition)
+    elif "enum" in type_definition:
+        return build_enum_class("Anonymous", type_definition)
+    else:
+        return convert_type_name(type_definition.get("type", ""))
 
 
 def convert_type_name(type_value: Union[str, List[str]]) -> Optional[Type]:
@@ -85,6 +100,8 @@ def is_number_type(defined_type: Type) -> bool:
     """
     if is_union_type(defined_type):
         return all([is_number_type(subtype) for subtype in get_args(defined_type)])
+    elif defined_type in (int, float):
+        return True
     else:
         return (int in getmro(defined_type)) or (float in getmro(defined_type))
 
@@ -119,7 +136,7 @@ def get_enum_value_types(enum_definition: List[Union[str, int, float, bool]]) ->
     return value_types
 
 
-def get_enum_type(field_name: str, field_definition: Dict) -> Type[Enum]:
+def build_enum_class(field_name: str, field_definition: Dict) -> Type[Enum]:
     """
     Construct enum type from field definition.
     Currently only works with primitive types, and requires type uniformity.
@@ -166,3 +183,72 @@ def get_enum_type(field_name: str, field_definition: Dict) -> Type[Enum]:
         type=value_types[0],
     )
     return enum_type
+
+
+def build_number_class(prop_attrs: Dict) -> Union[Type[int], Type[float]]:
+    """
+    Get class for primitive number types and object properties.
+    JSONschema uses a more forgiving understanding of "number" than Pydantic's
+    non-strict float - integers and floats can both be "numbers" - but doesn't allow
+    casting numbers represented as strings like "42" into Number types. This requires
+    overwriting the validators methods to fix.
+
+    An additional __init__ method is provided to force (in a somewhat hackish manner)
+    validation if an instance of the type is created outside of a Pydantic model.
+
+    Args:
+        prop_attrs: numeric property attributes
+
+    Return:
+        constructed number typeclass.
+    """
+    args = {"strict": True}
+    if "multipleOf" in prop_attrs:
+        args["multiple_of"] = prop_attrs["multipleOf"]
+    if "minimum" in prop_attrs:
+        args["ge"] = prop_attrs["minimum"]
+    elif "exclusiveMinimum" in prop_attrs:
+        args["gt"] = prop_attrs["exclusiveMinimum"]
+    if "maximum" in prop_attrs:
+        args["le"] = prop_attrs["maximum"]
+    elif "exclusiveMaximum" in prop_attrs:
+        args["lt"] = prop_attrs["exclusiveMaximum"]
+
+    t = prop_attrs["type"]
+    floaty = t == "number" or t == "float"
+    if floaty:
+        type_constructor = confloat
+    elif t == "integer":
+        type_constructor = conint
+    else:
+        raise ValueError(f"Received non-numeric type value: {t}")
+
+    number_class = type_constructor(**args)
+
+    if floaty:
+
+        def less_strict_float_validator(v, field):
+            if is_number_type(type(v)):
+                return v
+            raise FloatError()
+
+        def __get_validators__(cls):
+            yield less_strict_float_validator
+            yield number_size_validator
+            yield number_multiple_validator
+
+        number_class.__get_validators__ = classmethod(__get_validators__)  # type: ignore
+
+    def __init__(self_, value):
+        class TmpClass:
+            type_ = number_class
+
+        for validator_fn in self_.__get_validators__():
+            try:
+                validator_fn(value, TmpClass)
+            except PydanticValueError:
+                raise ValidationError([], number_class)  # type: ignore
+
+    number_class.__init__ = __init__  # type: ignore
+
+    return number_class

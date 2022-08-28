@@ -18,7 +18,7 @@ from typing import (
 )
 
 import requests
-from pydantic import StrictFloat, StrictInt, create_model, validator
+from pydantic import create_model, validator
 from pydantic.class_validators import root_validator
 from pydantic.fields import Field, Undefined
 from pydantic.main import BaseModel
@@ -31,15 +31,13 @@ from .exceptions import (
 )
 from .pydantic_utils import get_configs
 from .schema import SchemaVersion, get_schema, resolve_schema_version
-from .types import convert_type_name, is_number_type, is_union_type
+from .types import build_number_class, convert_type_name, get_typeclass, is_number_type
 from .validators import (
     create_array_contains_validator,
     create_array_length_validator,
     create_array_unique_validator,
     create_string_regex_validator,
     create_tuple_validator,
-    get_number_class_validators,
-    get_number_validators,
 )
 
 logging.basicConfig(
@@ -175,35 +173,6 @@ class ClassBuilder:
 
         return type_tuple, attributes
 
-    def _build_number_class(self, name: str, definition: Dict) -> Tuple[Tuple, Dict]:
-        """
-        Build parts for number (int or float) class, including validators.
-
-        Args:
-            name: class name
-            definition: class properties from schema
-
-        Return:
-            Components for type() construction of number class object
-        """
-        type_def, validators = self._build_number_property(name, definition)
-
-        def __get_validators__(cls):
-            yield cls.validate
-
-        def validate(cls, v):
-            for validator_i in validators.values():
-                validator_i(cls, v)
-            return v
-
-        attributes = {
-            "__get_validators__": classmethod(__get_validators__),
-            "validate": validator(name, allow_reuse=True)(validate),
-        }
-        if is_union_type(type_def):
-            type_def = float
-        return (type_def,), attributes
-
     def _build_primitive_class(self, name: str, definition: Dict) -> None:
         """
         Construct classes derived from basic primitives (eg strings). Bare strings and
@@ -222,7 +191,7 @@ class ClassBuilder:
         if definition["type"] == "string":
             type_tuple, attributes = self._build_string_class(name, definition)
         elif definition["type"] in ["number", "integer"]:
-            type_tuple, attributes = self._build_number_class(name, definition)
+            type_tuple = (build_number_class(definition),)
         else:
             raise UnsupportedSchemaException
         model = type(name, type_tuple, attributes)
@@ -256,6 +225,8 @@ class ClassBuilder:
             array_type = List
 
         if "prefixItems" in prop_attrs:
+            # Pydantic doesn't have a list type that conforms to JSONschema tuples --
+            # so we have to recreate the behavior by manually validating each value
             validate_tuple = create_tuple_validator(prop_attrs)
             validators[f"validate_{prop_name}_tuple"] = validator(
                 prop_name, allow_reuse=True
@@ -271,10 +242,7 @@ class ClassBuilder:
                 raw_array_type = prop_attrs["items"]["type"]
                 item_type = convert_type_name(raw_array_type)
                 if is_number_type(item_type):
-                    number_validators = get_number_class_validators(
-                        prop_name, prop_attrs
-                    )
-                    validators.update(number_validators)
+                    item_type = (build_number_class(prop_attrs["items"]),)
             else:
                 raise SchemaParseException(
                     "`items` property, if it exists, should include either reference or `type` properties"
@@ -298,30 +266,6 @@ class ClassBuilder:
             )(unique_validator)
 
         return array_type, validators, has_forward_ref
-
-    def _build_number_property(
-        self, prop_name: str, prop_attrs: Dict
-    ) -> Tuple[Type, Dict[str, Callable]]:
-        """
-        Get exact type and validators for primitive number types.
-
-        Args:
-            prop_name: field name of property
-            prop_attrs: numeric property attributes
-
-        Return:
-            type and a list of validators to add
-        """
-        t = prop_attrs["type"]
-        if t == "number" or t == "float":
-            type_value = Union[StrictFloat, StrictInt]
-        elif t == "integer":
-            type_value = StrictInt
-        else:
-            raise ValueError(f"Received non-numeric type value: {t}")
-
-        validators = get_number_class_validators(prop_name, prop_attrs)
-        return (type_value, validators)
 
     def _build_property(
         self, class_name: str, prop_name: str, prop_attrs: Dict, required_field: bool
@@ -360,10 +304,7 @@ class ClassBuilder:
                 validators.update(arr_validators)
                 has_forward_ref |= arr_has_forward_ref
             elif raw_type_value in ("number", "integer"):
-                field_type, num_validators = self._build_number_property(
-                    prop_name, prop_attrs
-                )
-                validators.update(num_validators)
+                field_type = build_number_class(prop_attrs)
             else:
                 field_type = convert_type_name(raw_type_value)
 
@@ -461,7 +402,9 @@ class ClassBuilder:
             allow_population_by_field_name |= prop_pop_field_name
 
         config = get_configs(name, definition, allow_population_by_field_name)
-        model = create_model(__model_name=name, __config__=config, __validators__=validators, **fields)  # type: ignore
+        model = create_model(
+            __model_name=name, __config__=config, __validators__=validators, **fields
+        )  # type: ignore
         if "description" in definition:
             model.__doc__ = definition["description"]
 

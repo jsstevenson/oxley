@@ -6,8 +6,8 @@ from pydantic import StrictFloat, StrictInt
 
 from oxley.exceptions import SchemaConversionException
 from oxley.types import (
+    build_enum_class,
     convert_type_name,
-    get_enum_type,
     is_number_type,
     is_optional_type,
 )
@@ -62,7 +62,7 @@ def test_is_number_type():
 
 def test_get_enum_type():
     """Test get_enum_type function."""
-    RelativeCopyClass = get_enum_type(
+    RelativeCopyClass = build_enum_class(
         "relative_copy_class",
         {
             "type": "string",
@@ -79,7 +79,7 @@ def test_get_enum_type():
     assert RelativeCopyClass.HIGH_LEVEL_GAIN.value == "high-level gain"  # type: ignore
 
     # test messed up enumerable names
-    Comparator = get_enum_type(
+    Comparator = build_enum_class(
         "comparator",
         {
             "type": "string",
@@ -91,11 +91,11 @@ def test_get_enum_type():
     assert Comparator.___A.value == ">="  # type: ignore
 
     with pytest.raises(SchemaConversionException) as exc_info:
-        get_enum_type("multiple_value_types", {"enum": [1, "a"]})
+        build_enum_class("multiple_value_types", {"enum": [1, "a"]})
     assert str(exc_info.value) == "Enum values must all be the same type"
 
     with pytest.raises(SchemaConversionException) as exc_info:
-        get_enum_type(
+        build_enum_class(
             "non_primitive_types", {"type": "object", "enum": [{"a": 1}, {"b": 2}]}
         )
 
