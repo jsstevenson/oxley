@@ -23,9 +23,16 @@ TYPE_CONVERSION_TABLE = {
 }
 
 
-def get_typeclass(type_definition: Dict[str, Any]) -> Type:
+def get_typeclass(type_definition: Dict[str, Any]) -> Optional[Type]:
     """
-    TODO
+    Construct class object given type definition. Work in progress - new type features
+    should add to this.
+
+    Args:
+        type_definition: JSONschema definition for the type
+
+    Return:
+        completed typeclass object
     """
     if type_definition.get("type") in ("number", "integer"):
         return build_number_class(type_definition)
@@ -56,7 +63,7 @@ def convert_type_name(type_value: Union[str, List[str]]) -> Optional[Type]:
         union_types = tuple([convert_type_name(t) for t in type_value])
         return Union[union_types]  # type: ignore
     elif type_value in TYPE_CONVERSION_TABLE:
-        return TYPE_CONVERSION_TABLE[type_value]
+        return TYPE_CONVERSION_TABLE[type_value]  # type: ignore
     else:
         raise SchemaConversionException("unrecognized type")
 
@@ -133,7 +140,7 @@ def get_enum_value_types(enum_definition: List[Union[str, int, float, bool]]) ->
             f"Unable to construct enum from type {value_types[0]}. Must be one of "
             "{`str`, `int`, `float`, `bool`}"
         )
-    return value_types
+    return value_types  # type: ignore
 
 
 def build_enum_class(field_name: str, field_definition: Dict) -> Type[Enum]:

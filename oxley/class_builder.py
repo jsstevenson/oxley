@@ -186,7 +186,7 @@ class ClassBuilder:
         Raises:
             UnsupportedSchemaException: if non-string classes are provided.
         """
-        attributes = {}
+        attributes: Dict[str, Any] = {}
         type_tuple: Tuple = ()
         if definition["type"] == "string":
             type_tuple, attributes = self._build_string_class(name, definition)
@@ -396,7 +396,7 @@ class ClassBuilder:
                 prop_fwd_ref,
                 prop_pop_field_name,
             ) = self._build_property(name, prop_name, prop_attrs, field_required)
-            fields.update(new_fields)
+            fields.update(new_fields)  # type: ignore
             validators.update(new_validators)
             has_forward_ref |= prop_fwd_ref
             allow_population_by_field_name |= prop_pop_field_name
