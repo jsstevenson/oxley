@@ -5,7 +5,10 @@ from oxley.validators import (
     create_array_contains_validator,
     create_array_length_validator,
     create_array_unique_validator,
+    create_number_multiple_validator,
+    create_number_range_validator,
     create_tuple_validator,
+    validate_slot,
 )
 
 
@@ -20,7 +23,7 @@ def test_tuple_validator():
                 {"type": "boolean"},
                 {"type": "string"},
             ],
-        }
+        },
     )
     assert validate_tuple(None, [10, 10, False, "yes"])
     assert validate_tuple(None, [10])
@@ -39,7 +42,7 @@ def test_tuple_validator():
             "type": "array",
             "prefixItems": [{"type": "string"}, {"type": "number"}],
             "items": False,
-        }
+        },
     )
     assert validate_tuple(None, ["1", 1])
     with pytest.raises(ValueError):
@@ -50,7 +53,7 @@ def test_tuple_validator():
             "type": "array",
             "prefixItems": [{"type": "string"}, {"type": "number"}],
             "items": {"type": "string"},
-        }
+        },
     )
     assert validate_tuple(None, ["1", 1, "1"])
     with pytest.raises(ValueError):
@@ -61,7 +64,7 @@ def test_tuple_validator():
             "type": "array",
             "prefixItems": [{"type": "string"}, {"type": "number"}],
             "items": {"enum": [1, 10, 100]},
-        }
+        },
     )
     assert validate_tuple(None, ["1", 1, 1])
     with pytest.raises(ValueError):
@@ -106,3 +109,51 @@ def test_array_unique_validator():
     assert validate_array_unique(None, []) == []
     with pytest.raises(ValueError):
         validate_array_unique(None, ["a", 2, "b", "b"])
+
+
+def test_validate_slot():
+    """Test `validate_slot` function."""
+    assert validate_slot("a", {"type": "string"})
+    assert validate_slot(1, {"type": "number"})
+    assert validate_slot(1, {"type": "integer"})
+    assert validate_slot(1.0, {"type": "number"})
+    assert validate_slot(None, {"type": "null"})
+
+
+def test_number_multiple_validator():
+    """Test `create_number_multiple_validator`."""
+    validate_number_multiple = create_number_multiple_validator(7)
+    assert validate_number_multiple(None, 0) is not None
+    assert validate_number_multiple(None, 7)
+    assert validate_number_multiple(None, 56)
+    with pytest.raises(ValueError):
+        validate_number_multiple(None, 5)
+
+
+def test_number_range_validator():
+    """Test `create_number_range_validator`."""
+    validate_number_range = create_number_range_validator(5, None, None, None)
+    assert validate_number_range(None, 7)
+    with pytest.raises(ValueError):
+        validate_number_range(None, 4)
+
+    validate_number_range = create_number_range_validator(None, 5, None, None)
+    assert validate_number_range(None, 7)
+    with pytest.raises(ValueError):
+        validate_number_range(None, 5)
+    with pytest.raises(ValueError):
+        validate_number_range(None, -2)
+
+    validate_number_range = create_number_range_validator(None, 5, 10, None)
+    assert validate_number_range(None, 8)
+    with pytest.raises(ValueError):
+        validate_number_range(None, 5)
+    with pytest.raises(ValueError):
+        validate_number_range(None, 11)
+
+    validate_number_range = create_number_range_validator(None, 5, None, 7)
+    assert validate_number_range(None, 6)
+    with pytest.raises(ValueError):
+        validate_number_range(None, 7)
+    with pytest.raises(ValueError):
+        validate_number_range(None, 11)
