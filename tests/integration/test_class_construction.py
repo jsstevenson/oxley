@@ -34,7 +34,7 @@ def test_required_values(example_schema_classes):
         Car(make="nissan", year=1991)
     assert (
         str(exc_info.value)
-        == "1 validation error for Car\nmodel\n  field required (type=value_error.missing)"
+        == "1 validation error for Car\nmodel\n  field required (type=value_error.missing)"  # noqa: E501
     )
 
 
@@ -117,7 +117,7 @@ def test_include_descriptions(example_schema_classes):
     Knight = example_schema_classes["Knight"]
     assert (
         Knight.schema()["description"]
-        == "A knight is a person granted an honorary title of knighthood by a head of state (including the Pope) or representative for service to the monarch, the church or the country, especially in a military capacity"
+        == "A knight is a person granted an honorary title of knighthood by a head of state (including the Pope) or representative for service to the monarch, the church or the country, especially in a military capacity"  # noqa: E501
     )
 
 
@@ -177,7 +177,8 @@ def test_http_ref(example_schema_classes):
 
 def test_array(example_schema_classes):
     """Test construction of classes that use arrays.
-    Cases lifted from https://json-schema.org/understanding-json-schema/reference/array.html
+    Cases lifted from:
+    https://json-schema.org/understanding-json-schema/reference/array.html
     """
     ArrayTester = example_schema_classes["ArrayTester"]
     tester = ArrayTester(values_list=[1, 2, 3, 4, 5])

@@ -37,7 +37,7 @@ def resolve_type(type_value: Union[str, List[str]]) -> Optional[Type]:
         return list
     elif type_value == "object":
         return dict
-    elif type_value == None or type_value == "null":
+    elif type_value is None or type_value == "null":
         return None
     else:
         raise SchemaConversionException("unrecognized type")

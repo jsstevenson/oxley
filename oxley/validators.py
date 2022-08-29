@@ -62,7 +62,7 @@ def create_tuple_validator(prop_attrs: Dict) -> Callable:
                 if len(v) > definition_length:
                     raise ValueError
             else:
-                for value in v[len(prop_attrs["prefixItems"]) :]:
+                for value in v[len(prop_attrs["prefixItems"]) :]:  # noqa: E203
                     if not validate_slot(value, prop_attrs["items"]):
                         raise ValueError
         return v

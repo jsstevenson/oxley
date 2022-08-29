@@ -14,7 +14,7 @@ def test_resolve_type():
     assert resolve_type("boolean") == bool
     assert resolve_type("array") == list
     assert resolve_type("object") == dict
-    assert resolve_type("null") == None
+    assert resolve_type("null") is None
     assert resolve_type(["string", "number"]) == Union[str, float]
     assert resolve_type(["object"]) == dict
 
@@ -64,7 +64,7 @@ def test_build_enum():
         {
             "type": "string",
             "enum": ["<=", ">="],
-            "description": 'MUST be one of "<=" or ">=", indicating which direction the range is indefinite',
+            "description": 'MUST be one of "<=" or ">=", indicating which direction the range is indefinite',  # noqa: E501
         },
     )
     assert Comparator.__.value == "<="  # type: ignore
@@ -81,5 +81,5 @@ def test_build_enum():
 
     assert (
         str(exc_info.value)
-        == "Unable to construct enum from type <class 'dict'>. Must be one of {`str`, `int`, `float`, `bool`}"
+        == "Unable to construct enum from type <class 'dict'>. Must be one of {`str`, `int`, `float`, `bool`}"  # noqa: E501
     )  # noqa: E501

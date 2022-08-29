@@ -1,9 +1,8 @@
 """Initialize module."""
 import logging
-import sys
 
 from .class_builder import ClassBuilder
-from .version import __version__
+from .version import __version__  # noqa: F401
 
 __all__ = ["ClassBuilder"]
 

@@ -89,7 +89,8 @@ def get_schema(schema_input: Union[Path, str, Dict]) -> Dict:
                 status_code = response.status_code
                 if status_code != 200:
                     raise InvalidSchemaException(
-                        f"Schema HTTP retrieval from address {schema_input} failed with code {status_code}"
+                        f"Schema HTTP retrieval from address {schema_input} failed "
+                        "with code {status_code}"
                     )
                 return response.json()
             else:

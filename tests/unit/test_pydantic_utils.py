@@ -1,5 +1,5 @@
 """Test pydantic_utils module."""
-from typing import Any, Dict, Type
+from typing import Type
 
 from pydantic.config import Extra
 
@@ -20,7 +20,7 @@ def test_get_configs():
         "HumanCytoband",
         {
             "additionalProperties": False,
-            "description": "A character string representing cytobands derived from the *International System for Human Cytogenomic Nomenclature* (ISCN) [guidelines](http://doi.org/10.1159/isbn.978-3-318-06861-0).",
+            "description": "A character string representing cytobands derived from the *International System for Human Cytogenomic Nomenclature* (ISCN) [guidelines](http://doi.org/10.1159/isbn.978-3-318-06861-0).",  # noqa: E501
             "type": "string",
             "pattern": "^cen|[pq](ter|([1-9][0-9]*(\\.[1-9][0-9]*)?))$",
             "example": "q22.3",

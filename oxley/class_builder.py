@@ -97,7 +97,8 @@ class ClassBuilder:
 
         Args:
             ref: complete reference value
-            def_keyword: schema definition keyword (`$defs` in recent JSONschema versions)
+            def_keyword: schema definition keyword, `$defs` in recent JSONschema
+                versions
 
         Return:
             Class name parsed from reference
@@ -234,7 +235,8 @@ class ClassBuilder:
                 item_type = resolve_type(raw_array_type)
             else:
                 raise SchemaParseException(
-                    "`items` property, if it exists, should include either reference or `type` properties"
+                    "`items` property, if it exists, should include either reference "
+                    "or `type` properties"
                 )
             array_type = List[item_type]  # type: ignore
         else:
@@ -386,7 +388,9 @@ class ClassBuilder:
             allow_population_by_field_name |= prop_pop_field_name
 
         config = get_configs(name, definition, allow_population_by_field_name)
-        model = create_model(__model_name=name, __config__=config, __validators__=validators, **fields)  # type: ignore
+        model = create_model(
+            __model_name=name, __config__=config, __validators__=validators, **fields
+        )  # type: ignore
         if "description" in definition:
             model.__doc__ = definition["description"]
 
@@ -404,8 +408,9 @@ class ClassBuilder:
           * as a Dict constructed from a JSONschema document
 
         Args:
-            schema_input: class builder input. Could be a Path or pathlike object to a local file,
-                an HTTP URL, or a plain Dict built from JSON input elsewhere.
+            schema_input: class builder input. Could be a Path or pathlike object to a
+                local file, an HTTP URL, or a plain Dict built from JSON input
+                elsewhere.
 
         Returns:
             Schema as dict
