@@ -177,7 +177,7 @@ def test_http_ref(example_schema_classes):
 
 def test_array(example_schema_classes):
     """Test construction of classes that use arrays.
-    Cases lifted from
+    Cases lifted from:
     https://json-schema.org/understanding-json-schema/reference/array.html
     """
     ArrayTester = example_schema_classes["ArrayTester"]

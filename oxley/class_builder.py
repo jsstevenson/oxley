@@ -31,7 +31,7 @@ from .exceptions import (
 )
 from .pydantic_utils import get_configs
 from .schema import SchemaVersion, get_schema, resolve_schema_version
-from .types import build_number_class, convert_type_name, get_typeclass, is_number_type
+from .types import build_number_class, convert_type_name, is_number_type
 from .validators import (
     create_array_contains_validator,
     create_array_length_validator,
@@ -112,7 +112,8 @@ class ClassBuilder:
 
         Args:
             ref: complete reference value
-            def_keyword: schema definition keyword (`$defs` in recent JSONschema versions)
+            def_keyword: schema definition keyword, `$defs` in recent JSONschema
+                versions
 
         Return:
             Class name parsed from reference
@@ -245,7 +246,8 @@ class ClassBuilder:
                     item_type = (build_number_class(prop_attrs["items"]),)
             else:
                 raise SchemaParseException(
-                    "`items` property, if it exists, should include either reference or `type` properties"
+                    "`items` property, if it exists, should include either reference "
+                    "or `type` properties"
                 )
             array_type = List[item_type]  # type: ignore
         else:
@@ -422,8 +424,9 @@ class ClassBuilder:
           * as a Dict constructed from a JSONschema document
 
         Args:
-            schema_input: class builder input. Could be a Path or pathlike object to a local file,
-                an HTTP URL, or a plain Dict built from JSON input elsewhere.
+            schema_input: class builder input. Could be a Path or pathlike object to a
+                local file, an HTTP URL, or a plain Dict built from JSON input
+                elsewhere.
 
         Returns:
             Schema as dict

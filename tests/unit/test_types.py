@@ -20,7 +20,7 @@ def test_convert_type_name():
     assert convert_type_name("boolean") == bool
     assert convert_type_name("array") == list
     assert convert_type_name("object") == dict
-    assert convert_type_name("null") == None
+    assert convert_type_name("null") is None
     assert (
         convert_type_name(["string", "number"])
         == Union[str, Union[StrictFloat, StrictInt]]
@@ -84,7 +84,7 @@ def test_get_enum_type():
         {
             "type": "string",
             "enum": ["<=", ">="],
-            "description": 'MUST be one of "<=" or ">=", indicating which direction the range is indefinite',
+            "description": 'MUST be one of "<=" or ">=", indicating which direction the range is indefinite',  # noqa: E501
         },
     )
     assert Comparator.__.value == "<="  # type: ignore
@@ -101,5 +101,5 @@ def test_get_enum_type():
 
     assert (
         str(exc_info.value)
-        == "Unable to construct enum from type <class 'dict'>. Must be one of {`str`, `int`, `float`, `bool`}"
-    )  # noqa: E501
+        == "Unable to construct enum from type <class 'dict'>. Must be one of {`str`, `int`, `float`, `bool`}"  # noqa: E501
+    )

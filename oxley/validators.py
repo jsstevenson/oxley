@@ -30,7 +30,7 @@ def create_tuple_validator(prop_attrs: Dict) -> Callable:
                 if len(v) > definition_length:
                     raise ValueError
             else:
-                for value in v[len(prop_attrs["prefixItems"]) :]:
+                for value in v[len(prop_attrs["prefixItems"]) :]:  # noqa: E203
                     if not validate_slot(value, prop_attrs["items"]):
                         raise ValueError
         return v
@@ -122,10 +122,10 @@ def create_array_unique_validator() -> Callable:
 def validate_slot(value: Any, type_definition: Optional[Dict[str, Any]]) -> bool:
     """
     Helper function for validators to use in tuple-like arrays.
-    For example, JSONschema uses the "prefixItems" attribute to impose requirements on specific slots
-    within arrays (i.e., as if they're typed tuples). Pydantic doesn't play well with some edge
-    features of this setup, so we use validator functions to perform checks manually rather than
-    coming up with tricky type annotations.
+    For example, JSONschema uses the "prefixItems" attribute to impose requirements on
+    specific slots within arrays (i.e., as if they're typed tuples). Pydantic doesn't
+    play well with some edge features of this setup, so we use validator functions to
+    perform checks manually rather than coming up with tricky type annotations.
 
     Args:
         value: the individual value to check
@@ -139,7 +139,7 @@ def validate_slot(value: Any, type_definition: Optional[Dict[str, Any]]) -> bool
     """
     if type_definition is None:
         raise SchemaParseException(
-            f"Could not provide slot type checks given type definition {type_definition}"
+            f"Could not provide slot type checks given type definition {type_definition}"  # noqa: E501
         )
     else:
         if "type" in type_definition:
@@ -260,9 +260,9 @@ def create_number_range_validator(
     """
     Construct number range validator.
 
-    As with the multipleOf validator, checking with and against floats feels a little dire.
-    It's likely legal to make this validation impossible, but no check is performed
-    against that here.
+    As with the multipleOf validator, checking with and against floats feels a little
+    dire. It's likely legal to make this validation impossible, but no check is
+    performed against that here.
 
     Args:
         minimum: number must be >=

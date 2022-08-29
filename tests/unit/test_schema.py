@@ -64,7 +64,7 @@ def test_get_schema():
         get_schema(invalid_http_ref)
     assert (
         str(exc_info.value)
-        == f"Schema HTTP retrieval from address {invalid_http_ref} failed with code {404}"
+        == f"Schema HTTP retrieval from address {invalid_http_ref} failed with code 404"  # noqa: E501
     )
 
     path_str_ref = "tests/data/example_schema.json"
@@ -90,5 +90,5 @@ def test_get_schema():
     assert get_schema(existing_json) == existing_json
 
     with pytest.raises(InvalidSchemaException) as exc_info:
-        get_schema(("https://json-schema.org/learn/examples/address.schema.json",))  # type: ignore
+        get_schema(("https://json-schema.org/learn/examples/address.schema.json",))  # type: ignore # noqa: E501
     assert str(exc_info.value) == "Unable to produce valid schema from input object."

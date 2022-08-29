@@ -42,7 +42,7 @@ def get_configs(
     schema_extra_value = {}  # type: ignore
     if "example" in definition:
 
-        def schema_extra_function(schema: Dict[str, Any], model: Type[name]) -> None:  # type: ignore
+        def schema_extra_function(schema: Dict[str, Any], model: Type[name]) -> None:  # type: ignore # noqa: E501
             """Configure schema"""
             schema["example"] = definition["example"]
 

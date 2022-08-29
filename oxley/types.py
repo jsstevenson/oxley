@@ -244,7 +244,7 @@ def build_number_class(prop_attrs: Dict) -> Union[Type[int], Type[float]]:
             yield number_size_validator
             yield number_multiple_validator
 
-        number_class.__get_validators__ = classmethod(__get_validators__)  # type: ignore
+        number_class.__get_validators__ = classmethod(__get_validators__)  # type: ignore # noqa: E501
 
     def __init__(self_, value):
         class TmpClass:
