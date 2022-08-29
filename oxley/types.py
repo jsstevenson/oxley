@@ -224,9 +224,9 @@ def build_number_class(prop_attrs: Dict) -> Union[Type[int], Type[float]]:
     t = prop_attrs["type"]
     floaty = t == "number" or t == "float"
     if floaty:
-        type_constructor = confloat
+        type_constructor = confloat  # type: ignore
     elif t == "integer":
-        type_constructor = conint
+        type_constructor = conint  # type: ignore
     else:
         raise ValueError(f"Received non-numeric type value: {t}")
 

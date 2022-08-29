@@ -244,10 +244,11 @@ def get_number_class_validators(
         Validator names mapped to validator class methods
     """
     validator_functions = get_number_validators(prop_name, prop_attrs)
-    return {
+    validators = {
         fn_name: validator(prop_name, allow_reuse=True)(fn)
         for fn_name, fn in validator_functions.items()
     }  # type: ignore
+    return validators  # type: ignore
 
 
 def create_number_range_validator(
