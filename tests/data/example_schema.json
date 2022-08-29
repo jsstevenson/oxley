@@ -212,8 +212,46 @@
         "uniqueness_array": {
           "type": "array",
           "uniqueItems": true
+        },
+        "curie_array": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/CURIE" }
+        },
+        "tupleNumber": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "string" },
+            { "type": "integer", "multipleOf": 5 }
+          ]
+        },
+        "arrayNumber": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "exclusiveMinimum": 10
+          }
         }
       }
+    },
+    "NumberTester": {
+      "type": "object",
+      "properties": {
+        "integer": { "type": "integer" },
+        "number": { "type": "number" },
+        "multipleOf": {
+          "type": "number",
+          "multipleOf": 10
+        },
+        "range": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 100
+        }
+      }
+    },
+    "BigNumber": {
+      "type": "number",
+      "minimum": 1000
     }
   }
 }

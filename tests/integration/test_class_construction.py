@@ -248,3 +248,53 @@ def test_array(example_schema_classes):
     assert ArrayTester(uniqueness_array=[])
     with pytest.raises(ValidationError):
         ArrayTester(uniqueness_array=[1, 2, 3, 3, 4])
+
+    assert ArrayTester(curie_array=["a:b", "c:d"])
+    with pytest.raises(ValidationError):
+        ArrayTester(curie_array=["ab", "cd"])
+
+    assert ArrayTester(tupleNumber=["a", 10])
+    with pytest.raises(ValidationError):
+        ArrayTester(tupleNumber=["a", 9])
+
+    assert ArrayTester(arrayNumber=[50, 11])
+    assert ArrayTester(arrayNumber=[])
+    with pytest.raises(ValidationError):
+        ArrayTester(arrayNumber=[10])
+
+
+def test_number(example_schema_classes):
+    """Test number type properties."""
+    NumberTester = example_schema_classes["NumberTester"]
+    assert NumberTester(integer=42)
+    assert NumberTester(integer=-1)
+    with pytest.raises(ValidationError):
+        NumberTester(integer=3.14159)
+
+    assert NumberTester(number=42)
+    assert NumberTester(number=-1)
+    assert NumberTester(number=5.0)
+    assert NumberTester(number=2.999999e8)
+    with pytest.raises(ValidationError):
+        NumberTester(number="42")
+
+    assert NumberTester(multipleOf=0)
+    assert NumberTester(multipleOf=10)
+    assert NumberTester(multipleOf=10000)
+    with pytest.raises(ValidationError):
+        NumberTester(multipleOf=23)
+
+    assert NumberTester(range=0)
+    assert NumberTester(range=10)
+    assert NumberTester(range=99)
+    with pytest.raises(ValidationError):
+        NumberTester(range=-1)
+    with pytest.raises(ValidationError):
+        NumberTester(range=100)
+    with pytest.raises(ValidationError):
+        NumberTester(range=101)
+
+    BigNumber = example_schema_classes["BigNumber"]
+    assert BigNumber(1001)
+    with pytest.raises(ValidationError):
+        BigNumber(999)

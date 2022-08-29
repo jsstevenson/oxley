@@ -2,32 +2,41 @@
 from typing import Optional, Union
 
 import pytest
+from pydantic import StrictFloat, StrictInt
 
 from oxley.exceptions import SchemaConversionException
-from oxley.types import build_enum, is_optional_type, resolve_type
+from oxley.types import (
+    build_enum_class,
+    convert_type_name,
+    is_number_type,
+    is_optional_type,
+)
 
 
-def test_resolve_type():
-    """Test resolve_type function."""
-    assert resolve_type("string") == str
-    assert resolve_type("number") == float
-    assert resolve_type("boolean") == bool
-    assert resolve_type("array") == list
-    assert resolve_type("object") == dict
-    assert resolve_type("null") is None
-    assert resolve_type(["string", "number"]) == Union[str, float]
-    assert resolve_type(["object"]) == dict
+def test_convert_type_name():
+    """Test convert_type_name function."""
+    assert convert_type_name("string") == str
+    assert convert_type_name("number") == Union[StrictFloat, StrictInt]
+    assert convert_type_name("boolean") == bool
+    assert convert_type_name("array") == list
+    assert convert_type_name("object") == dict
+    assert convert_type_name("null") is None
+    assert (
+        convert_type_name(["string", "number"])
+        == Union[str, Union[StrictFloat, StrictInt]]
+    )
+    assert convert_type_name(["object"]) == dict
 
     with pytest.raises(TypeError) as exc_info:
-        resolve_type([])
+        convert_type_name([])
     assert str(exc_info.value) == "Cannot take a Union of no types."
 
     with pytest.raises(SchemaConversionException) as exc_info:
-        resolve_type("int")
+        convert_type_name("int")
     assert str(exc_info.value) == "unrecognized type"
 
     with pytest.raises(SchemaConversionException) as exc_info:
-        resolve_type(["array", "int"])
+        convert_type_name(["array", "int"])
     assert str(exc_info.value) == "unrecognized type"
 
 
@@ -40,9 +49,20 @@ def test_is_optional_type():
     assert not is_optional_type(str)
 
 
-def test_build_enum():
-    """Test build_enum function."""
-    RelativeCopyClass = build_enum(
+def test_is_number_type():
+    """Test is_number_type function."""
+    assert is_number_type(int)
+    assert is_number_type(float)
+    assert is_number_type(Union[int, float])
+    assert not is_number_type(Union[int, str])
+    assert is_number_type(StrictInt)
+    assert is_number_type(StrictFloat)
+    assert is_number_type(Union[StrictInt, StrictFloat])
+
+
+def test_get_enum_type():
+    """Test get_enum_type function."""
+    RelativeCopyClass = build_enum_class(
         "relative_copy_class",
         {
             "type": "string",
@@ -59,7 +79,7 @@ def test_build_enum():
     assert RelativeCopyClass.HIGH_LEVEL_GAIN.value == "high-level gain"  # type: ignore
 
     # test messed up enumerable names
-    Comparator = build_enum(
+    Comparator = build_enum_class(
         "comparator",
         {
             "type": "string",
@@ -71,15 +91,15 @@ def test_build_enum():
     assert Comparator.___A.value == ">="  # type: ignore
 
     with pytest.raises(SchemaConversionException) as exc_info:
-        build_enum("multiple_value_types", {"enum": [1, "a"]})
+        build_enum_class("multiple_value_types", {"enum": [1, "a"]})
     assert str(exc_info.value) == "Enum values must all be the same type"
 
     with pytest.raises(SchemaConversionException) as exc_info:
-        build_enum(
+        build_enum_class(
             "non_primitive_types", {"type": "object", "enum": [{"a": 1}, {"b": 2}]}
         )
 
     assert (
         str(exc_info.value)
         == "Unable to construct enum from type <class 'dict'>. Must be one of {`str`, `int`, `float`, `bool`}"  # noqa: E501
-    )  # noqa: E501
+    )

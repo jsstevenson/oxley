@@ -31,18 +31,19 @@ from .exceptions import (
 )
 from .pydantic_utils import get_configs
 from .schema import SchemaVersion, get_schema, resolve_schema_version
-from .types import build_enum, resolve_type
+from .types import build_number_class, convert_type_name, is_number_type
 from .validators import (
     create_array_contains_validator,
     create_array_length_validator,
     create_array_unique_validator,
+    create_string_regex_validator,
     create_tuple_validator,
 )
 
 logging.basicConfig(
     level=logging.INFO,
     handlers=[
-        logging.FileHandler("pydantic_jsonschema_objects.log"),
+        logging.FileHandler("oxley.log"),
         logging.StreamHandler(),
     ],
 )
@@ -51,6 +52,9 @@ logger = logging.getLogger(__name__)
 
 
 REF_PATTERN = re.compile(r"(.*)#/((definitions)|(\$defs))/(.*)")
+
+
+FieldsType = Dict[str, Union[Callable, Tuple]]
 
 
 class ClassBuilder:
@@ -86,9 +90,20 @@ class ClassBuilder:
         return self.models
 
     def _build_class(self, name: str, definition: Dict) -> None:
+        """
+        Build Pydantic class from definition.
+        Subtly different from building a type, which might not need a separate Pydantic
+        instance. Every set of arguments received here should be stored by child methods
+        in one of the `namespace` state variables, and returned by the `build_classes`
+        method.
+
+        Args:
+            name: class name
+            definition: properties
+        """
         if definition["type"] == "object":
             self._build_object_class(name, definition)
-        elif definition["type"] == "string":
+        elif definition["type"] in ["string", "number", "integer"]:
             self._build_primitive_class(name, definition)
 
     def _resolve_ref(self, ref: str) -> str:
@@ -121,12 +136,49 @@ class ClassBuilder:
             self.external_ns.add(name)
         return name
 
-    def _build_primitive_class(self, name: str, definition: Dict):
+    def _build_string_class(self, name: str, definition: dict) -> Tuple[Tuple, Dict]:
+        """
+        Provide components for a Pydantic-compatible class object for specialized
+        string properties.
+
+        Args:
+            name: class name
+            definition: property definition
+
+        Return:
+            type tuple `(str,)` and a dictionary containing attributes.
+        """
+        type_tuple = (str,)
+        attributes = {}
+        if "pattern" in definition:
+            pattern = definition["pattern"]
+
+            # handle JS escape sequences
+            # TODO: do this more robustly
+            # https://github.com/jsstevenson/oxley/issues/1
+            pattern = pattern.replace("//", "/")
+
+            def __get_validators__(cls):
+                yield cls.validate
+
+            def __modify_schema__(cls, field_schema):
+                field_schema.update(pattern=pattern)
+
+            attributes = {
+                "__get_validators__": classmethod(__get_validators__),
+                "__modify_schema__": classmethod(__modify_schema__),
+                "validate": validator(name, allow_reuse=True)(
+                    create_string_regex_validator(pattern)
+                ),
+            }
+
+        return type_tuple, attributes
+
+    def _build_primitive_class(self, name: str, definition: Dict) -> None:
         """
         Construct classes derived from basic primitives (eg strings). Bare strings and
         numbers don't need to come through here, but any class that bounds their
         possible values will. Updates `self.local_ns` with completed class definition.
-        Currently only supports strings.
 
         Args:
             name: class name
@@ -135,77 +187,32 @@ class ClassBuilder:
         Raises:
             UnsupportedSchemaException: if non-string classes are provided.
         """
-        attributes = {}
+        attributes: Dict[str, Any] = {}
         type_tuple: Tuple = ()
         if definition["type"] == "string":
-
-            type_tuple = (str,)
-            if "pattern" in definition:
-                pattern = definition["pattern"]
-
-                # handle JS escape sequences
-                # TODO: do this more robustly
-                pattern = pattern.replace("//", "/")
-
-                @classmethod  # type: ignore
-                def __get_validators__(cls):
-                    yield cls.validate
-
-                @classmethod  # type: ignore
-                def __modify_schema__(cls, field_schema):
-                    field_schema.update(pattern=pattern)
-
-                @classmethod  # type: ignore
-                def validate(cls, v):
-                    if not isinstance(v, str):
-                        raise TypeError("string required")
-                    m = re.match(pattern, v)
-                    if not m:
-                        raise ValueError("provided value doesn't match pattern")
-                    return cls(v)
-
-                attributes = {
-                    "__get_validators__": __get_validators__,
-                    "__modify_schema__": __modify_schema__,
-                    "validate": validate,
-                }
-
+            type_tuple, attributes = self._build_string_class(name, definition)
+        elif definition["type"] in ["number", "integer"]:
+            type_tuple = (build_number_class(definition),)
         else:
             raise UnsupportedSchemaException
         model = type(name, type_tuple, attributes)
         self.local_ns[name] = model
 
-    def _build_tuple_item(
-        self, item: Dict, prop_name: str
-    ) -> Optional[Union[Type, ForwardRef]]:
+    def _build_array_property(
+        self, prop_name: str, prop_attrs: Dict
+    ) -> Tuple[Type, Dict, bool]:
         """
-        Process individual tuple item annotation.
-        This is structured slightly differently from how object types are defined,
-        so we have a separate method, but it'd be nice to generalize in a refactor.
+        Construct component parts for array property.
 
         Args:
-            item: the item value under the array
-            prop_name: property name
+            prop_name: field name of property
+            prop_attrs: array property attributes
 
         Return:
-            Type param to declare the array with
-
-        Raises:
-            SchemaParseException: if the item declaration doesn't conform to expected
-            structure.
+            Type tuple, validators dictionary, forward ref flag
         """
-        if "type" in item:
-            return resolve_type(item["type"])
-        elif "enum" in item:
-            return build_enum(f"{prop_name}AnonymousEnum", item)
-        elif "$ref" in item:
-            return ForwardRef(self._resolve_ref(item["$ref"]))
-        else:
-            raise SchemaParseException("Unrecognized tuple item type")
-
-    def _build_array(self, prop_name: str, prop_attrs: Dict) -> Tuple[Type, Dict]:
-        """ """
         validators = {}
+        has_forward_ref = False
 
         if "contains" in prop_attrs:
             validate_contains = create_array_contains_validator(
@@ -219,20 +226,24 @@ class ClassBuilder:
             array_type = List
 
         if "prefixItems" in prop_attrs:
+            # Pydantic doesn't have a list type that conforms to JSONschema tuples --
+            # so we have to recreate the behavior by manually validating each value
             validate_tuple = create_tuple_validator(prop_attrs)
             validators[f"validate_{prop_name}_tuple"] = validator(
                 prop_name, allow_reuse=True
             )(validate_tuple)
             array_type = List
-
         elif "items" in prop_attrs:
             if "$ref" in prop_attrs["items"]:
                 item_type: Any = ForwardRef(
                     self._resolve_ref(prop_attrs["items"]["$ref"])
                 )
+                has_forward_ref = True
             elif "type" in prop_attrs["items"]:
                 raw_array_type = prop_attrs["items"]["type"]
-                item_type = resolve_type(raw_array_type)
+                item_type = convert_type_name(raw_array_type)
+                if is_number_type(item_type):
+                    item_type = (build_number_class(prop_attrs["items"]),)
             else:
                 raise SchemaParseException(
                     "`items` property, if it exists, should include either reference "
@@ -256,11 +267,11 @@ class ClassBuilder:
                 prop_name, allow_reuse=True
             )(unique_validator)
 
-        return array_type, validators
+        return array_type, validators, has_forward_ref
 
     def _build_property(
         self, class_name: str, prop_name: str, prop_attrs: Dict, required_field: bool
-    ):
+    ) -> Tuple[FieldsType, Dict[str, Callable], bool, bool]:
         """
         Construct individual object property.
 
@@ -270,13 +281,16 @@ class ClassBuilder:
             prop_attrs: property definition
             required_field: if True, field is required, optional otherwise
 
+        Return:
+            Fields Types, validators, and flags for constructor configs
+
         Raise:
             SchemaConversionException: if unsupported types are provided as consts
         """
         has_forward_ref = False
         allow_population_by_field_name = False
         validators = {}
-        fields: Dict[str, Union[Callable, Tuple]] = {}
+        fields: FieldsType = {}
 
         if "$ref" in prop_attrs:
             field_type: Any = ForwardRef(self._resolve_ref(prop_attrs["$ref"]))
@@ -284,10 +298,17 @@ class ClassBuilder:
         else:
             raw_type_value = prop_attrs["type"]
             if raw_type_value == "array":
-                field_type, arr_validators = self._build_array(prop_name, prop_attrs)
+                (
+                    field_type,
+                    arr_validators,
+                    arr_has_forward_ref,
+                ) = self._build_array_property(prop_name, prop_attrs)
                 validators.update(arr_validators)
+                has_forward_ref |= arr_has_forward_ref
+            elif raw_type_value in ("number", "integer"):
+                field_type = build_number_class(prop_attrs)
             else:
-                field_type = resolve_type(raw_type_value)
+                field_type = convert_type_name(raw_type_value)
 
         field_args = {"description": prop_attrs.get("description")}
         if "default" in prop_attrs:
@@ -329,21 +350,16 @@ class ClassBuilder:
                 # TODO -- construct complex object consts
                 raise SchemaConversionException
             else:
-                const_type = Literal[const_value]  # type: ignore
-            if not required_field:
-                const_type = Optional[const_type]  # type: ignore
+                field_type = Literal[const_value]  # type: ignore
             field_args["default"] = const_value
-            fields[prop_name] = (const_type, Field(**field_args))  # type: ignore
         elif "enum" in prop_attrs:
             vals = {str(p).upper(): p for p in prop_attrs["enum"]}
-            enum_type = Enum(prop_name, vals, type=str)  # type: ignore
-            if not required_field:
-                enum_type = Optional[enum_type]  # type: ignore
-            fields[prop_name] = (enum_type, Field(**field_args))  # type: ignore
-        else:
-            if not required_field:
-                field_type = Optional[field_type]
-            fields[prop_name] = (field_type, Field(**field_args))  # type: ignore
+            field_type = Enum(prop_name, vals, type=str)  # type: ignore
+
+        if not required_field:
+            field_type = Optional[field_type]
+
+        fields[prop_name] = (field_type, Field(**field_args))  # type: ignore
         return fields, validators, has_forward_ref, allow_population_by_field_name
 
     def _build_object_class(self, name: str, definition: Dict) -> None:
@@ -382,7 +398,7 @@ class ClassBuilder:
                 prop_fwd_ref,
                 prop_pop_field_name,
             ) = self._build_property(name, prop_name, prop_attrs, field_required)
-            fields.update(new_fields)
+            fields.update(new_fields)  # type: ignore
             validators.update(new_validators)
             has_forward_ref |= prop_fwd_ref
             allow_population_by_field_name |= prop_pop_field_name

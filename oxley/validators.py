@@ -1,48 +1,16 @@
 """Provide helper functions for validator construction."""
-from typing import Any, Callable, Dict, Optional
+import re
+from typing import Any, Callable, Dict, Optional, get_args
 
-from .exceptions import SchemaParseException
-from .types import resolve_type
+from pydantic import validator
 
-
-def validate_slot(value: Any, type_definition: Dict) -> bool:
-    """
-    Helper function for validators to use in tuple-like arrays.
-    JSONschema uses the "prefixItems" attribute to impose requirements on specific slots
-    within arrays (i.e., as if they're typed tuples). Pydantic doesn't play well with
-    some edge features of this setup, so we use validator functions to perform checks
-    manually rather than coming up with tricky type annotations.
-
-    Currently only able to handle type definitions using primitive values or inline
-    enum declarations.
-
-    Args:
-        value: the individual value to check
-        type_definition: definition to check against
-
-    Return:
-        true if value meets the type_definition, false otherwise
-
-    Raises:
-        SchemaParseException: if expected type definition styles are missing
-    """
-    if "type" in type_definition:
-        type_definition_type = type_definition["type"]
-        # resolve_type maps "number" -> float to be inclusive,
-        # so we need a special check for ints
-        if type_definition_type == "number" and isinstance(value, int):
-            return True
-        return isinstance(value, resolve_type(type_definition["type"]))  # type: ignore
-    if "enum" in type_definition:
-        return value in type_definition["enum"]
-    raise SchemaParseException(
-        f"Unknown tuple type definition format: {type_definition}"
-    )
+from oxley.exceptions import SchemaParseException
+from oxley.types import convert_type_name, is_number_type, is_union_type
 
 
 def create_tuple_validator(prop_attrs: Dict) -> Callable:
     """
-    Construct validator function for tuple-like arrays. `types.validate_slot` docstring
+    Construct validator function for tuple-like arrays. `validate_slot` docstring
     has more backstory re: necessity of validators for tuples.
 
     Args:
@@ -71,7 +39,9 @@ def create_tuple_validator(prop_attrs: Dict) -> Callable:
 
 
 def create_array_contains_validator(
-    contains_type: Dict, min_contains: Optional[int], max_contains: Optional[int]
+    type_definition: Dict,
+    min_contains: Optional[int],
+    max_contains: Optional[int],
 ) -> Callable:
     """
     Construct validator function for `contains` keyword in array validation.
@@ -87,7 +57,7 @@ def create_array_contains_validator(
     """
 
     def validate_array_contains(cls, v):
-        contains_count = sum([validate_slot(v_i, contains_type) for v_i in v])
+        contains_count = sum([validate_slot(v_i, type_definition) for v_i in v])
         if (
             min_contains is not None and contains_count < min_contains
         ) or contains_count < 1:
@@ -147,3 +117,193 @@ def create_array_unique_validator() -> Callable:
         return v
 
     return validate_array_unique
+
+
+def validate_slot(value: Any, type_definition: Optional[Dict[str, Any]]) -> bool:
+    """
+    Helper function for validators to use in tuple-like arrays.
+    For example, JSONschema uses the "prefixItems" attribute to impose requirements on
+    specific slots within arrays (i.e., as if they're typed tuples). Pydantic doesn't
+    play well with some edge features of this setup, so we use validator functions to
+    perform checks manually rather than coming up with tricky type annotations.
+
+    Args:
+        value: the individual value to check
+        type_definition: definition to check against
+
+    Return:
+        true if value meets the type_definition, false otherwise
+
+    Raises:
+        SchemaParseException: if expected type definition styles are missing
+    """
+    if type_definition is None:
+        raise SchemaParseException(
+            f"Could not provide slot type checks given type definition {type_definition}"  # noqa: E501
+        )
+    else:
+        if "type" in type_definition:
+            # type checks
+            defined_type = convert_type_name(type_definition["type"])
+            if defined_type is None:
+                if value is not None:
+                    return False
+            elif hasattr(defined_type, "strict") and getattr(defined_type, "strict"):
+                try:
+                    defined_type(value)  # type: ignore
+                except ValueError:
+                    return False
+            elif is_union_type(defined_type):
+                for subtype in get_args(defined_type):
+                    if hasattr(subtype, "strict") and getattr(subtype, "strict"):
+                        try:
+                            subtype(value)  # type: ignore
+                        except ValueError:
+                            return False
+            elif not isinstance(value, defined_type):  # type: ignore
+                return False
+
+            # custom validations
+            if defined_type is not None:
+                if is_number_type(defined_type):
+                    validators = get_number_validators("", type_definition)
+                    for validator_fn in validators.values():
+                        try:
+                            validator_fn(None, value)
+                        except ValueError:
+                            return False
+        if "enum" in type_definition:
+            if value not in type_definition["enum"]:
+                return False
+    return True
+
+
+def create_number_multiple_validator(num: float) -> Callable:
+    """
+    Construct number multipleOf validator.
+
+    The JSONschema specs suggest `num` can probably be a float. I'm a little uneasy
+    about the reliability of multiple_of checks involving non-integers, but the spec
+    is the spec.
+
+    Args:
+        num: value to check if multiple of
+
+    Return:
+        function to pass to Pydantic validator constructor
+    """
+
+    def validate_number_multiple_of(cls, v):
+        if v % num != 0:
+            raise ValueError
+        return v
+
+    return validate_number_multiple_of
+
+
+def get_number_validators(prop_name: str, prop_attrs: Dict) -> Dict[str, Callable]:
+    """
+    Get base validator functions for number property/type. Direct use in the Pydantic
+    validation phase requires a wrapper function that calls `pydantic.validator()` on
+    them.
+
+    Args:
+        prop_name: field name of property
+        prop_attrs: numeric property attributes
+
+    Return:
+        Validator names mapped to functions
+    """
+    validators = {}
+    if "multipleOf" in prop_attrs:
+        validate_multiple = create_number_multiple_validator(prop_attrs["multipleOf"])
+        validators[f"validate_{prop_name}_multipleOf"] = validate_multiple
+    minimum = prop_attrs.get("minimum")
+    exclusive_minimum = prop_attrs.get("exclusiveMinimum")
+    maximum = prop_attrs.get("maximum")
+    exclusive_maximum = prop_attrs.get("exclusiveMaximum")
+    if any([minimum, exclusive_minimum, maximum, exclusive_maximum]):
+        validate_range = create_number_range_validator(
+            minimum, exclusive_minimum, maximum, exclusive_maximum
+        )
+        validators[f"validate_{prop_name}_range"] = validate_range
+    return validators
+
+
+def get_number_class_validators(
+    prop_name: str, prop_attrs: Dict
+) -> Dict[str, Callable]:
+    """
+    Get validator class methods to be used in actual Pydantic classes.
+
+    Args:
+        prop_name: field name of property
+        prop_attrs: numeric property attributes
+
+    Return:
+        Validator names mapped to validator class methods
+    """
+    validator_functions = get_number_validators(prop_name, prop_attrs)
+    validators = {
+        fn_name: validator(prop_name, allow_reuse=True)(fn)
+        for fn_name, fn in validator_functions.items()
+    }  # type: ignore
+    return validators  # type: ignore
+
+
+def create_number_range_validator(
+    minimum: Optional[float],
+    exclusiveMinimum: Optional[float],
+    maximum: Optional[float],
+    exclusiveMaximum: Optional[float],
+) -> Callable:
+    """
+    Construct number range validator.
+
+    As with the multipleOf validator, checking with and against floats feels a little
+    dire. It's likely legal to make this validation impossible, but no check is
+    performed against that here.
+
+    Args:
+        minimum: number must be >=
+        exclusiveMinimum: number must be >
+        maximum: number must be <=
+        exclusiveMaximum: number must be <
+
+    Return:
+        function to pass to Pydantic validator constructor
+    """
+
+    def validate_number_range(cls, v):
+        if minimum is not None and v < minimum:
+            raise ValueError
+        if exclusiveMinimum is not None and v <= exclusiveMinimum:
+            raise ValueError
+        if maximum is not None and v > maximum:
+            raise ValueError
+        if exclusiveMaximum is not None and v >= exclusiveMaximum:
+            raise ValueError
+        return v
+
+    return validate_number_range
+
+
+def create_string_regex_validator(pattern: str) -> Callable:
+    """
+    Construct string regex pattern validator.
+
+    Args:
+        pattern: raw string to be converted into regex pattern
+
+    Return:
+        function to pass to Pydantic validator constructor
+    """
+    pattern_re = re.compile(pattern)
+
+    def validate_pattern(cls, v):
+        m = re.match(pattern_re, v)
+        if not m:
+            raise ValueError("provided value doesn't match pattern")
+        return cls(v)
+
+    return validate_pattern
