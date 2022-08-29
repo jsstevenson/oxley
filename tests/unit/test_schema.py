@@ -64,8 +64,7 @@ def test_get_schema():
         get_schema(invalid_http_ref)
     assert (
         str(exc_info.value)
-        == f"Schema HTTP retrieval from address {invalid_http_ref} failed with "
-        f"code {404}"
+        == f"Schema HTTP retrieval from address {invalid_http_ref} failed with code 404"  # noqa: E501
     )
 
     path_str_ref = "tests/data/example_schema.json"
